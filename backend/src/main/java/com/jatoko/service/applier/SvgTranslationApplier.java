@@ -160,19 +160,83 @@ public class SvgTranslationApplier {
                 // span의 부모의 부모 div에서 white-space: pre-wrap 제거
                 removeWhiteSpacePreWrap(span);
 
+                // 원본 텍스트의 font-size 추출
+                String fontSize = extractFontSize(span);
+
                 // 번역 오버레이 span 생성 (CSS로 숨김/표시)
                 Element overlaySpan = document.createElement("span");
                 overlaySpan.setAttribute("class", "translation-overlay");
+
+                // 원본과 동일한 font-size 적용
+                if (!fontSize.isEmpty()) {
+                    String style = overlaySpan.getAttribute("style");
+                    overlaySpan.setAttribute("style", style + "font-size: " + fontSize + ";");
+                }
+
                 overlaySpan.setTextContent(translatedText);
 
                 // 기존 span에 오버레이 직접 추가
                 span.appendChild(overlaySpan);
 
-                log.debug("foreignObject에 CSS 오버레이 추가: original={}, translation={}",
-                          originalText, translatedText);
+                log.debug("foreignObject에 CSS 오버레이 추가: original={}, translation={}, fontSize={}",
+                          originalText, translatedText, fontSize);
                 break; // 첫 번째 text-edit span만 수정
             }
         }
+    }
+
+    /**
+     * 요소의 font-size를 추출합니다.
+     * style 속성, CSS 상속, 또는 부모 요소에서 font-size를 찾습니다.
+     *
+     * @param element 대상 요소
+     * @return font-size 값 (예: "12px", "14pt") 또는 빈 문자열
+     */
+    private String extractFontSize(Element element) {
+        // 1. 요소 자체의 style 속성에서 font-size 찾기
+        String style = element.getAttribute("style");
+        if (style != null && !style.isEmpty()) {
+            String fontSize = extractFontSizeFromStyle(style);
+            if (!fontSize.isEmpty()) {
+                return fontSize;
+            }
+        }
+
+        // 2. 부모 요소 탐색 (최대 3단계)
+        Node parent = element.getParentNode();
+        for (int i = 0; i < 3 && parent instanceof Element parentElement; i++) {
+            String parentStyle = parentElement.getAttribute("style");
+            if (parentStyle != null && !parentStyle.isEmpty()) {
+                String fontSize = extractFontSizeFromStyle(parentStyle);
+                if (!fontSize.isEmpty()) {
+                    return fontSize;
+                }
+            }
+            parent = parentElement.getParentNode();
+        }
+
+        return ""; // font-size를 찾지 못한 경우
+    }
+
+    /**
+     * style 속성 문자열에서 font-size 값을 추출합니다.
+     *
+     * @param style CSS style 문자열 (예: "font-size: 12px; color: red;")
+     * @return font-size 값 (예: "12px") 또는 빈 문자열
+     */
+    private String extractFontSizeFromStyle(String style) {
+        // "font-size: 12px" 또는 "font-size:12px" 패턴 매칭
+        String[] parts = style.split(";");
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (trimmed.startsWith("font-size:") || trimmed.startsWith("font-size :")) {
+                String fontSize = trimmed.substring(trimmed.indexOf(':') + 1).trim();
+                if (!fontSize.isEmpty()) {
+                    return fontSize;
+                }
+            }
+        }
+        return "";
     }
 
     /**
