@@ -105,4 +105,9 @@ export const downloadTranslatedFile = async (targetFileName: string): Promise<Bl
   return downloadBlob(`/download/translated/${targetFileName}`);
 };
 
+// 배치 삭제
+export const deleteBatch = async (fileNames: string[]): Promise<void> => {
+  await postData<void>('/files/batch-delete', { fileNames });
+};
+
 export default api;

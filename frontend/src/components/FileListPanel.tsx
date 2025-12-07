@@ -4,7 +4,7 @@ import {
   uploadToTarget,
   translateBatch,
   downloadTranslatedFile,
-  deleteFile,
+  deleteBatch,
 } from '../services/api';
 import { useTranslationStore, translationStore } from '../stores/translationStore';
 
@@ -180,20 +180,27 @@ export function FileListPanel(): React.ReactElement {
     }
   };
 
-  const handleDelete = async (fileName: string, e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
-    e.stopPropagation();
+  const handleBatchDelete = async (): Promise<void> => {
+    if (selectedFiles.size === 0) {
+      translationStore.setError('삭제할 파일을 선택하세요.');
+      return;
+    }
 
-    if (!confirm(`"${fileName}" 파일을 삭제하시겠습니까?`)) {
+    const fileNames = Array.from(selectedFiles);
+
+    if (!confirm(`선택한 ${fileNames.length}개의 파일을 삭제하시겠습니까?`)) {
       return;
     }
 
     translationStore.clearError();
 
     try {
-      await deleteFile('target', fileName);
+      await deleteBatch(fileNames);
       await fetchFiles();
+      translationStore.deselectAll();
     } catch (err) {
-      translationStore.setError('파일 삭제에 실패했습니다.');
+      const error = err as { response?: { data?: { error?: string } }; message?: string };
+      translationStore.setError(`배치 삭제 실패: ${error.response?.data?.error || error.message}`);
       console.error(err);
     }
   };
@@ -242,6 +249,9 @@ export function FileListPanel(): React.ReactElement {
         <button onClick={handleBatchDownload} disabled={selectedFiles.size === 0}>
           선택 파일 다운로드 ({selectedFiles.size})
         </button>
+        <button onClick={handleBatchDelete} disabled={selectedFiles.size === 0} className="delete-btn">
+          선택 파일 삭제 ({selectedFiles.size})
+        </button>
       </div>
 
       <div
@@ -260,7 +270,7 @@ export function FileListPanel(): React.ReactElement {
         {fileMetadata.length === 0 && !uploading ? (
           <p className="empty-message">.asta, .svg 파일을 여기에 드래그하여 업로드</p>
         ) : (
-          <table className="file-table">
+          <table>
             <thead>
               <tr>
                 <th>
@@ -274,7 +284,6 @@ export function FileListPanel(): React.ReactElement {
                 <th>번역됨</th>
                 <th>업로드 날짜</th>
                 <th>번역된 날짜</th>
-                <th>작업</th>
               </tr>
             </thead>
             <tbody>
@@ -291,15 +300,6 @@ export function FileListPanel(): React.ReactElement {
                   <td className="translated-status">{file.translated ? '✓' : '✗'}</td>
                   <td>{formatDate(file.uploadedAt)}</td>
                   <td>{formatDate(file.translatedAt)}</td>
-                  <td>
-                    <button
-                      className="delete-btn"
-                      onClick={(e) => handleDelete(file.fileName, e)}
-                      title="삭제"
-                    >
-                      ✕
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
