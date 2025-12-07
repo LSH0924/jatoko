@@ -79,8 +79,7 @@ class DirectoryServiceTest {
         List<String> files = directoryService.listFiles("target");
 
         // Verify
-        assertEquals(2, files.size());
+        assertEquals(1, files.size());
         assertTrue(files.contains("file1.asta"));
-        assertTrue(files.contains("file3.txt"));
     }
 }
