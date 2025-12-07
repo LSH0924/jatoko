@@ -135,7 +135,14 @@ const store = {
         downloadFile(fileBlob, `${baseName}_translated.svg`);
       }
 
-      useStore.setState({ status: '번역된 파일을 다운로드했습니다!', error: null });
+      if (fileType === 'svg') {
+        useStore.setState({
+          status: '번역된 SVG 파일을 다운로드했습니다! (텍스트에 마우스를 호버하면 번역이 표시됩니다)',
+          error: null,
+        });
+      } else {
+        useStore.setState({ status: '번역된 파일을 다운로드했습니다!', error: null });
+      }
     } catch (error) {
       const axiosError = error as AxiosError<ApiErrorResponse>;
       useStore.setState({
