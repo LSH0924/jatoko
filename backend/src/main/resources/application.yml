@@ -20,8 +20,6 @@ server:
     connection-timeout: 1800000  # 30분 (밀리초)
     max-http-form-post-size: 524288000  # 500MB
 
-upload:
-  dir: ${user.dir}/uploads
 
 app:
   dir:
@@ -42,9 +40,6 @@ spring:
   config:
     activate:
       on-profile: docker
-
-upload:
-  dir: /app/uploads
 
 app:
   dir:

@@ -24,9 +24,6 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-# 업로드 디렉토리 생성
-RUN mkdir -p /app/uploads
-
 # 빌드 결과물 복사
 COPY --from=build /app/build/libs/*.jar app.jar
 

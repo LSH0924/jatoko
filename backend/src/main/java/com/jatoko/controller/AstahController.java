@@ -1,6 +1,5 @@
 package com.jatoko.controller;
 
-import com.jatoko.config.FileUploadConfig;
 import com.jatoko.service.AstahParserService;
 import com.jatoko.service.SessionStorageService;
 

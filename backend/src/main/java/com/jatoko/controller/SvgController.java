@@ -1,6 +1,5 @@
 package com.jatoko.controller;
 
-import com.jatoko.config.FileUploadConfig;
 import com.jatoko.service.SessionStorageService;
 import com.jatoko.service.SvgParserService;
 import lombok.RequiredArgsConstructor;
