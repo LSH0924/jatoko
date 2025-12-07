@@ -1,0 +1,66 @@
+# Java / Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+*.jar
+*.war
+*.ear
+*.class
+*.log
+.settings/
+.project
+.classpath
+bin/
+
+# Spring Boot
+spring-boot-*.log
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Node.js / React
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+dist-ssr/
+*.local
+
+# Vite
+.vite/
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 업로드된 파일
+uploads/
+temp/
+target/
+translated/
+
+# 환경 변수
+.env
+.env.local
+.env.production
+
+# Astah 임시 파일
+*.asta~
+*.astah~
+
+# claude
+.claude/
