@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/filelistpanel.tsx","./src/components/fileuploadsection.tsx","./src/components/statusdisplay.tsx","./src/components/translationsection.tsx","./src/services/api.ts","./src/stores/translationstore.ts","./src/types/index.ts"],"version":"5.8.3"}

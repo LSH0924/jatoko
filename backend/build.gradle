@@ -1,0 +1,77 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.7'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.jatoko'
+version = '0.0.1-SNAPSHOT'
+
+java {
+    sourceCompatibility = '21'
+}
+
+tasks.withType(JavaCompile) {
+    options.compilerArgs << '-Xlint:deprecation'
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+    // Astah SDK는 로컬에 수동으로 추가해야 할 수 있습니다
+    flatDir {
+        dirs 'libs'
+    }
+}
+
+dependencies {
+    // Spring Boot
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // JSON 처리
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Astah SDK
+    implementation files('libs/astah-api.jar')
+    implementation files('libs/astah-professional.jar')
+    implementation files('libs/rlm-1601.jar')
+
+    // Astah SDK 의존성
+    implementation 'com.google.guava:guava:33.0.0-jre'
+    // Docker 에서 Astah GUI 대응용 라이브러리 추가
+    implementation 'com.formdev:flatlaf:3.4'
+    implementation 'com.formdev:flatlaf-intellij-themes:3.4'
+
+    // 파일 처리
+    implementation 'commons-io:commons-io:2.15.1'
+
+    // 테스트
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    // 벡터이미지 처리: Batik 라이브러리 추가
+    implementation 'org.apache.xmlgraphics:batik-transcoder:1.19'
+    
+    // DeepL API
+    implementation "com.deepl.api:deepl-java:1.11.0"
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// test.asta 분석 태스크
+tasks.register('analyzeTestAsta', JavaExec) {
+    mainClass = 'com.jatoko.AnalyzeTestAsta'
+    classpath = sourceSets.test.runtimeClasspath
+    workingDir = project.rootDir.parentFile
+}

@@ -1,0 +1,44 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jatoko-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - UPLOAD_DIR=/app/uploads
+      - APP_DIR_TARGET=/app/target
+      - APP_DIR_TRANSLATED=/app/translated
+      - DEEPL_AUTH_KEY=${DEEPL_AUTH_KEY}
+      - DEEPL_GLOSSARY_ID=${DEEPL_GLOSSARY_ID}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./target:/app/target
+      - ./translated:/app/translated
+    networks:
+      - jatoko-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jatoko-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=http://localhost:8080
+    depends_on:
+      - backend
+    networks:
+      - jatoko-network
+    restart: unless-stopped
+
+networks:
+  jatoko-network:
+    driver: bridge
+
+volumes:
+  uploads:

@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: jatoko-backend
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 500MB
+      max-request-size: 500MB
+  mvc:
+    async:
+      request-timeout: 1800000  # 30분 (밀리초)
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+  tomcat:
+    connection-timeout: 1800000  # 30분 (밀리초)
+    max-http-form-post-size: 524288000  # 500MB
+
+upload:
+  dir: ${user.dir}/uploads
+
+app:
+  dir:
+    target: ${user.dir}/target
+    translated: ${user.dir}/translated
+
+deepl:
+  auth-key: ${DEEPL_AUTH_KEY}
+  glossary-id: ${DEEPL_GLOSSARY_ID}
+
+logging:
+  level:
+    com.jatoko: DEBUG
+    org.springframework.web: INFO
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+upload:
+  dir: /app/uploads
+
+app:
+  dir:
+    target: /app/target
+    translated: /app/translated
+
+server:
+  port: 8080
