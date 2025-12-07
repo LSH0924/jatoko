@@ -3,9 +3,6 @@ import axios, { AxiosInstance } from 'axios';
 const API_BASE_URL = 'http://localhost:8080/api';
 
 // API 응답 타입 정의
-export interface UploadResponse {
-  sessionId: string;
-}
 
 export interface TranslationResponse {
   message: string;
@@ -50,36 +47,6 @@ const deleteData = async (url: string): Promise<void> => {
 };
 
 // --- Exported Service Functions ---
-
-// Astah 파일 업로드
-export const uploadAstaFile = async (file: File): Promise<UploadResponse> => {
-  return uploadFile<UploadResponse>('/upload/astah', file);
-};
-
-// 통합 번역 적용 (추출 → 번역 → 적용 일괄 처리)
-export const applyTranslationIntegrated = async (sessionId: string): Promise<TranslationResponse> => {
-  return postData<TranslationResponse>('/apply-translation-integrated', { sessionId });
-};
-
-// 번역된 Astah 파일 다운로드
-export const downloadTranslatedFile = async (sessionId: string): Promise<Blob> => {
-  return downloadBlob(`/download/${sessionId}`);
-};
-
-// SVG 파일 업로드
-export const uploadSvgFile = async (file: File): Promise<UploadResponse> => {
-  return uploadFile<UploadResponse>('/svg/upload', file);
-};
-
-// SVG 통합 번역 적용 (추출 → 번역 → 적용 일괄 처리)
-export const applySvgTranslationIntegrated = async (sessionId: string): Promise<TranslationResponse> => {
-  return postData<TranslationResponse>('/svg/apply-translation-integrated', { sessionId });
-};
-
-// 번역된 SVG 파일 다운로드
-export const downloadTranslatedSvgFile = async (sessionId: string): Promise<Blob> => {
-  return downloadBlob(`/svg/download/${sessionId}`);
-};
 
 // 디렉토리 파일 목록 조회
 export const getDirectoryFiles = async (directory: string): Promise<string[]> => {

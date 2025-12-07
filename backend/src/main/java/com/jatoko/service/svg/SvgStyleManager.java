@@ -38,7 +38,6 @@ public class SvgStyleManager {
             "  opacity: 1;\n" +
             "  fill: #2563eb;\n" +
             "  font-weight: bold;\n" +
-            "  font-size: 0.9rem;\n" +
             "}\n" +
             /* foreignObject 내부 HTML 요소 오버레이 (text-edit 재활용) */
             ".text-edit.jp-translated {\n" +
@@ -57,7 +56,6 @@ public class SvgStyleManager {
             "  background-color: rgba(37, 99, 235, 0.95);\n" +
             "  color: white;\n" +
             "  font-weight: bold;\n" +
-            "  font-size: 0.9rem;\n" +
             "  opacity: 0;\n" +
             "  pointer-events: none;\n" +
             "  transition: opacity 0.3s ease;\n" +

@@ -265,7 +265,6 @@ DeepLException: Authentication failed
 
 | 메서드 | 경로 | 설명 | 요청 본문/파라미터 |
 |--------|------|------|--------------------|
-| POST | `/api/upload/astah` | .asta 파일 업로드 | `file`: MultipartFile |
 | POST | `/api/apply-translation-integrated` | 추출 + 번역 + 적용 통합 | `{"sessionId": "..."}` |
 | GET | `/api/download/{sessionId}` | 번역된 .asta 다운로드 | `sessionId`: 경로 변수 |
 
@@ -273,7 +272,6 @@ DeepLException: Authentication failed
 
 | 메서드 | 경로 | 설명 | 요청 본문/파라미터 |
 |--------|------|------|--------------------|
-| POST | `/api/svg/upload` | SVG 파일 업로드 | `file`: MultipartFile |
 | POST | `/api/svg/apply-translation-integrated` | 추출 + 번역 + 적용 통합 | `{"sessionId": "..."}` |
 | GET | `/api/svg/download/{sessionId}` | 번역된 SVG 다운로드 | `sessionId`: 경로 변수 |
 

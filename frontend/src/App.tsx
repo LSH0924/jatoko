@@ -1,6 +1,5 @@
 import React from 'react';
 import './App.css';
-import { StatusDisplay } from './components/StatusDisplay';
 import { FileListPanel } from './components/FileListPanel';
 import { useTranslationStore } from './stores/translationStore';
 
@@ -15,12 +14,15 @@ function App(): React.ReactElement {
       </header>
 
       <main className="App-main">
-        <FileListPanel
+          <FileListPanel
           onFileSelect={(fileName, type) => {
             useTranslationStore.setState({ status: `선택된 파일: ${fileName} (${type})` });
           }}
         />
-        <StatusDisplay loading={loading} status={status} />
+          <section className="status">
+              {loading && <div className="spinner"></div>}
+              <p className={loading ? 'loading' : ''}>{status}</p>
+          </section>
       </main>
     </div>
   );
