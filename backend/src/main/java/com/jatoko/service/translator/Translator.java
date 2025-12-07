@@ -26,9 +26,15 @@ public class Translator {
 
     public Translator(
             @Value("${deepl.auth-key}") String authKey,
-            @Value("${deepl.glossary-id}") String glossaryId) {
+            @Value("${deepl.glossary-id:#{null}}") String glossaryId) {
         this.client = new DeepLClient(authKey);
         this.glossaryId = glossaryId;
+
+        if (glossaryId == null || glossaryId.trim().isEmpty()) {
+            logger.info("DeepL 용어집 ID가 설정되지 않았습니다. 용어집 없이 번역합니다.");
+        } else {
+            logger.info("DeepL 용어집 ID: {}", glossaryId);
+        }
     }
 
     public List<String> translate(List<String> texts) throws DeepLException, InterruptedException {
@@ -39,7 +45,12 @@ public class Translator {
 
     private TextTranslationOptions createTranslationOptions() {
         TextTranslationOptions options = new TextTranslationOptions();
-        options.setGlossaryId(glossaryId);
+        if (glossaryId != null && !glossaryId.trim().isEmpty()) {
+            options.setGlossaryId(glossaryId);
+            logger.debug("용어집 사용: {}", glossaryId);
+        } else {
+            logger.debug("용어집 없이 번역");
+        }
         return options;
     }
 

@@ -30,7 +30,7 @@ app:
 
 deepl:
   auth-key: ${DEEPL_AUTH_KEY}
-  glossary-id: ${DEEPL_GLOSSARY_ID}
+  glossary-id: ${DEEPL_GLOSSARY_ID:}
 
 logging:
   level:

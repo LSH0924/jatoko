@@ -28,7 +28,7 @@ cp .env.example .env
 
 # .env 파일 편집 (실제 API 키 입력)
 # DEEPL_AUTH_KEY=your-deepl-auth-key-here
-# DEEPL_GLOSSARY_ID=your-glossary-id-here
+# DEEPL_GLOSSARY_ID=your-glossary-id-here  # 선택사항: 용어집 미사용 시 주석 처리
 ```
 
 ### 2. 서비스 실행
@@ -161,7 +161,42 @@ cp "/Applications/astah professional/astah-professional.jar" backend/libs/
 cp "/Applications/astah professional/rlm-1601.jar" backend/libs/
 ```
 
-### DeepL API 키 설정
+### DeepL API 설정
+
+#### 1. DeepL 가입 및 API 키 발급
+
+1. **DeepL API 계정 생성**: https://www.deepl.com/pro-api
+   - 무료 플랜: 월 500,000자까지 무료
+   - 신용카드 등록 필요 (무료 한도 초과 시에만 과금)
+
+2. **API 키 발급**:
+   - DeepL 계정 로그인 → "Account" → "API Keys"
+   - "Create new key" 클릭
+   - 생성된 인증 키(Authentication Key) 복사
+
+#### 2. DeepL 용어집 생성 (선택사항)
+
+**용어집 없이도 번역이 정상 작동합니다.** 용어집을 사용하면 특정 용어를 일관되게 번역할 수 있습니다.
+
+1. **DeepL API로 용어집 생성**:
+   ```bash
+   # glossary_for-iconnect.csv 파일을 사용하여 용어집 생성
+   curl -X POST 'https://api-free.deepl.com/v2/glossaries' \
+     -H "Authorization: DeepL-Auth-Key YOUR_AUTH_KEY" \
+     -F 'name=jatoko-glossary' \
+     -F 'source_lang=ja' \
+     -F 'target_lang=ko' \
+     -F 'entries_format=csv' \
+     -F 'entries=@glossary_for-iconnect.csv'
+   ```
+2. 혹은 **DeepL 홈페이지에서 용어집 생성**: https://www.deepl.com/ko/glossary
+
+3. **용어집 ID 확인**:
+   - 응답에서 `glossary_id` 값을 복사
+   - 또는 DeepL 계정 페이지 → "Glossaries"에서 확인
+     - 용어집 페이지에 들어갔을 때 주소 확인 : https://www.deepl.com/ko/glossary/{용어집ID}
+
+#### 3. 환경변수 설정
 
 **Docker Compose 사용 시** (권장):
 ```bash
@@ -169,8 +204,8 @@ cp "/Applications/astah professional/rlm-1601.jar" backend/libs/
 cp .env.example .env
 
 # 2. .env 파일 편집
-# DEEPL_AUTH_KEY=your-actual-key
-# DEEPL_GLOSSARY_ID=your-actual-glossary-id
+# DEEPL_AUTH_KEY=your-actual-auth-key  # 필수
+# DEEPL_GLOSSARY_ID=your-actual-glossary-id  # 선택사항: 용어집 미사용 시 주석 처리 또는 삭제
 
 # 3. 실행
 make up
@@ -178,7 +213,10 @@ make up
 
 **로컬 개발 시**:
 ```bash
-export DEEPL_AUTH_KEY="your-api-key-here"
+# 필수
+export DEEPL_AUTH_KEY="your-auth-key-here"
+
+# 선택사항: 용어집 사용 시에만 설정
 export DEEPL_GLOSSARY_ID="your-glossary-id"
 
 # 백엔드 실행

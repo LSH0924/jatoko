@@ -12,7 +12,7 @@ services:
       - APP_DIR_TARGET=/app/target
       - APP_DIR_TRANSLATED=/app/translated
       - DEEPL_AUTH_KEY=${DEEPL_AUTH_KEY}
-      - DEEPL_GLOSSARY_ID=${DEEPL_GLOSSARY_ID}
+      - DEEPL_GLOSSARY_ID=${DEEPL_GLOSSARY_ID:-}
     volumes:
       - ./uploads:/app/uploads
       - ./target:/app/target
