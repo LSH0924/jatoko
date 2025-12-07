@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: jatoko-backend-test
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 500MB
+      max-request-size: 500MB
+
+app:
+  dir:
+    target: ${user.dir}/target
+    translated: ${user.dir}/translated
+
+# 테스트용 더미 DeepL 설정
+# 실제 API를 호출하지 않는 테스트에서는 이 값이 사용되지 않습니다
+# 실제 API 호출이 필요한 테스트는 DEEPL_AUTH_KEY 환경 변수를 확인하고 스킵됩니다
+deepl:
+  auth-key: ${DEEPL_AUTH_KEY:dummy-key-for-testing}
+  glossary-id: ${DEEPL_GLOSSARY_ID:}
+
+logging:
+  level:
+    com.jatoko: DEBUG
+    org.springframework.web: WARN
