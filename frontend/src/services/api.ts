@@ -9,6 +9,21 @@ export interface TranslationResponse {
   sessionId: string;
 }
 
+export interface FileMetadata {
+  fileName: string;
+  translated: boolean;
+  uploadedAt: string | null;
+  translatedAt: string | null;
+}
+
+export interface BatchTranslationResponse {
+  successFiles: string[];
+  failedFiles: string[];
+  totalCount: number;
+  successCount: number;
+  failedCount: number;
+}
+
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -72,6 +87,22 @@ export const translateTargetFile = async (fileName: string): Promise<Translation
 // 파일 삭제 (target 또는 translated 디렉토리)
 export const deleteFile = async (type: string, fileName: string): Promise<void> => {
   await deleteData(`/files/${type}/${fileName}`);
+};
+
+// 파일 메타데이터 조회
+export const getFileMetadata = async (): Promise<FileMetadata[]> => {
+  const response = await api.get<FileMetadata[]>('/files/metadata');
+  return response.data;
+};
+
+// 배치 번역
+export const translateBatch = async (fileNames: string[]): Promise<BatchTranslationResponse> => {
+  return postData<BatchTranslationResponse>('/translate/batch', { fileNames });
+};
+
+// 번역된 파일 다운로드 (target 파일명으로 최신 번역 파일 다운로드)
+export const downloadTranslatedFile = async (targetFileName: string): Promise<Blob> => {
+  return downloadBlob(`/download/translated/${targetFileName}`);
 };
 
 export default api;

@@ -18,6 +18,14 @@ import java.util.List;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.web.multipart.MultipartFile;
+import com.jatoko.dto.FileMetadataDto;
+import com.jatoko.dto.BatchTranslationResponse;
+
+import java.nio.file.attribute.BasicFileAttributes;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Comparator;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -192,5 +200,168 @@ public class DirectoryService {
 
         Files.delete(filePath);
         log.info("File deleted from {}: {}", type, fileName);
+    }
+
+    /**
+     * target 디렉토리의 파일 메타데이터 목록 조회
+     */
+    public List<FileMetadataDto> getFileMetadata() throws IOException {
+        String targetPath = directoryConfig.getTarget();
+        String translatedPath = directoryConfig.getTranslated();
+
+        File targetDir = new File(targetPath);
+        File translatedDir = new File(translatedPath);
+
+        if (!targetDir.exists() || !targetDir.isDirectory()) {
+            throw new IllegalArgumentException("Target directory not found");
+        }
+
+        File[] targetFiles = targetDir.listFiles();
+        if (targetFiles == null) {
+            return new ArrayList<>();
+        }
+
+        List<FileMetadataDto> metadataList = new ArrayList<>();
+
+        for (File targetFile : targetFiles) {
+            String fileName = targetFile.getName();
+            boolean isShowable = !fileName.startsWith(".");
+            String lowerName = fileName.toLowerCase();
+            boolean hasTargetExtension = lowerName.endsWith(".asta") || lowerName.endsWith(".svg");
+
+            if (!targetFile.isFile() || !isShowable || !hasTargetExtension) {
+                continue;
+            }
+
+            // 업로드 날짜 (target 파일의 최종 수정 날짜)
+            LocalDateTime uploadedAt = getFileLastModified(targetFile.toPath());
+
+            // 번역 여부 및 번역 날짜 확인
+            boolean translated = false;
+            LocalDateTime translatedAt = null;
+
+            if (translatedDir.exists() && translatedDir.isDirectory()) {
+                // 번역된 파일 찾기 (fileName_translated.ext 또는 fileName_translated_N.ext)
+                String baseName = fileName.replaceAll("\\.(asta|astah|svg)$", "");
+                List<File> translatedFiles = findTranslatedFiles(translatedDir, baseName);
+
+                if (!translatedFiles.isEmpty()) {
+                    translated = true;
+                    // 가장 최신 번역 파일의 날짜
+                    translatedAt = translatedFiles.stream()
+                            .map(f -> getFileLastModified(f.toPath()))
+                            .max(Comparator.naturalOrder())
+                            .orElse(null);
+                }
+            }
+
+            FileMetadataDto metadata = FileMetadataDto.builder()
+                    .fileName(fileName)
+                    .translated(translated)
+                    .uploadedAt(uploadedAt)
+                    .translatedAt(translatedAt)
+                    .build();
+
+            metadataList.add(metadata);
+        }
+
+        return metadataList;
+    }
+
+    /**
+     * 파일의 최종 수정 날짜를 LocalDateTime으로 반환
+     */
+    private LocalDateTime getFileLastModified(Path filePath) {
+        try {
+            BasicFileAttributes attrs = Files.readAttributes(filePath, BasicFileAttributes.class);
+            return LocalDateTime.ofInstant(attrs.lastModifiedTime().toInstant(), ZoneId.systemDefault());
+        } catch (IOException e) {
+            log.warn("Failed to read file attributes: {}", filePath, e);
+            return null;
+        }
+    }
+
+    /**
+     * baseName에 해당하는 번역된 파일들을 찾음
+     * 예: file → file_translated.asta, file_translated_1.asta, file_translated_2.asta
+     */
+    private List<File> findTranslatedFiles(File translatedDir, String baseName) {
+        File[] files = translatedDir.listFiles();
+        if (files == null) {
+            return new ArrayList<>();
+        }
+
+        String pattern = baseName + "_translated";
+
+        return java.util.Arrays.stream(files)
+                .filter(f -> {
+                    String name = f.getName();
+                    String nameWithoutExt = name.replaceAll("\\.(asta|astah|svg)$", "");
+                    return nameWithoutExt.equals(pattern) || nameWithoutExt.startsWith(pattern + "_");
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 여러 파일을 순차적으로 번역 (DeepL API 부하 방지)
+     */
+    public BatchTranslationResponse translateFilesInBatch(List<String> fileNames) {
+        List<String> successFiles = new ArrayList<>();
+        List<String> failedFiles = new ArrayList<>();
+
+        for (String fileName : fileNames) {
+            try {
+                log.info("Translating file: {}", fileName);
+                String translatedFileName = translateFile(fileName);
+                successFiles.add(fileName);
+                log.info("Successfully translated: {} -> {}", fileName, translatedFileName);
+            } catch (Exception e) {
+                log.error("Failed to translate file: {}", fileName, e);
+                failedFiles.add(fileName);
+            }
+        }
+
+        return BatchTranslationResponse.builder()
+                .successFiles(successFiles)
+                .failedFiles(failedFiles)
+                .totalCount(fileNames.size())
+                .successCount(successFiles.size())
+                .failedCount(failedFiles.size())
+                .build();
+    }
+
+    /**
+     * target 파일명에 대응하는 최신 번역 파일 다운로드
+     */
+    public Resource downloadLatestTranslatedFile(String targetFileName) throws IOException {
+        String translatedPath = directoryConfig.getTranslated();
+        File translatedDir = new File(translatedPath);
+
+        if (!translatedDir.exists() || !translatedDir.isDirectory()) {
+            throw new IOException("Translated directory not found");
+        }
+
+        // 번역된 파일 찾기
+        String baseName = targetFileName.replaceAll("\\.(asta|astah|svg)$", "");
+        List<File> translatedFiles = findTranslatedFiles(translatedDir, baseName);
+
+        if (translatedFiles.isEmpty()) {
+            throw new IOException("No translated file found for: " + targetFileName);
+        }
+
+        // 가장 최신 파일 선택
+        File latestFile = translatedFiles.stream()
+                .max(Comparator.comparing(File::lastModified))
+                .orElseThrow(() -> new IOException("Failed to find latest translated file"));
+
+        Path filePath = latestFile.toPath();
+        Resource resource = new UrlResource(filePath.toUri());
+
+        if (!resource.exists() || !resource.isReadable()) {
+            throw new IOException("Cannot read file: " + latestFile.getName());
+        }
+
+        log.info("File prepared for download: {}", filePath);
+        return resource;
     }
 }

@@ -1,37 +1,36 @@
 import React, { useState, useEffect, useCallback, DragEvent } from 'react';
-import { getDirectoryFiles, uploadToTarget, downloadFromTranslated, translateTargetFile, deleteFile } from '../services/api';
+import {
+  getFileMetadata,
+  uploadToTarget,
+  translateBatch,
+  downloadTranslatedFile,
+  deleteFile,
+} from '../services/api';
+import { useTranslationStore, translationStore } from '../stores/translationStore';
 
-interface FileListPanelProps {
-  onFileSelect?: (fileName: string, type: string) => void;
-}
+export function FileListPanel(): React.ReactElement {
+  const fileMetadata = useTranslationStore((s) => s.fileMetadata);
+  const selectedFiles = useTranslationStore((s) => s.selectedFiles);
+  const loading = useTranslationStore((s) => s.loading);
+  const error = useTranslationStore((s) => s.error);
+  const batchProgress = useTranslationStore((s) => s.batchProgress);
 
-export function FileListPanel({ onFileSelect }: FileListPanelProps): React.ReactElement {
-  const [targetFiles, setTargetFiles] = useState<string[]>([]);
-  const [translatedFiles, setTranslatedFiles] = useState<string[]>([]);
-  const [selectedTranslatedFile, setSelectedTranslatedFile] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
-  const [translating, setTranslating] = useState<Record<string, boolean>>({});
-  const [error, setError] = useState<string>('');
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
 
   const ALLOWED_EXTENSIONS = ['.asta', '.astah', '.svg'];
 
   const fetchFiles = useCallback(async () => {
-    setLoading(true);
-    setError('');
+    translationStore.setLoading(true);
+    translationStore.clearError();
     try {
-      const [target, translated] = await Promise.all([
-        getDirectoryFiles('target'),
-        getDirectoryFiles('translated'),
-      ]);
-      setTargetFiles(target);
-      setTranslatedFiles(translated);
+      const metadata = await getFileMetadata();
+      translationStore.setFileMetadata(metadata);
     } catch (err) {
-      setError('파일 목록을 불러오는데 실패했습니다.');
+      translationStore.setError('파일 목록을 불러오는데 실패했습니다.');
       console.error(err);
     } finally {
-      setLoading(false);
+      translationStore.setLoading(false);
     }
   }, []);
 
@@ -65,12 +64,14 @@ export function FileListPanel({ onFileSelect }: FileListPanelProps): React.React
     });
 
     if (validFiles.length === 0) {
-      setError('.asta, .svg 파일만 업로드 가능합니다.');
+      translationStore.setError('.asta, .svg 파일만 업로드 가능합니다.');
       return;
     }
 
     if (validFiles.length !== files.length) {
-      setError(`${files.length - validFiles.length}개의 파일이 지원되지 않는 형식입니다. .asta, .svg만 허용됩니다.`);
+      translationStore.setError(
+        `${files.length - validFiles.length}개의 파일이 지원되지 않는 형식입니다. .asta, .svg만 허용됩니다.`
+      );
     }
 
     setUploading(true);
@@ -81,179 +82,133 @@ export function FileListPanel({ onFileSelect }: FileListPanelProps): React.React
       }
       await fetchFiles();
     } catch (err) {
-      setError('파일 업로드에 실패했습니다.');
+      translationStore.setError('파일 업로드에 실패했습니다.');
       console.error(err);
     } finally {
       setUploading(false);
     }
   };
 
-  const handleTranslate = async (fileName: string, e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
-    e.stopPropagation();
+  const handleCheckboxChange = (fileName: string): void => {
+    translationStore.toggleFileSelection(fileName);
+  };
 
-    setTranslating(prev => ({ ...prev, [fileName]: true }));
-    setError('');
-
-    try {
-      await translateTargetFile(fileName);
-      await fetchFiles();
-    } catch (err) {
-      const error = err as { response?: { data?: { error?: string } }; message?: string };
-      setError(`번역 실패: ${error.response?.data?.error || error.message}`);
-      console.error(err);
-    } finally {
-      setTranslating(prev => ({ ...prev, [fileName]: false }));
+  const handleSelectAll = (): void => {
+    if (selectedFiles.size === fileMetadata.length) {
+      translationStore.deselectAll();
+    } else {
+      translationStore.selectAll();
     }
   };
 
-  const handleDownload = async (e?: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
-    if (e) {
-      e.stopPropagation();
-    }
-
-    if (!selectedTranslatedFile) {
-      setError('다운로드할 파일을 선택하세요.');
+  const handleBatchTranslate = async (): Promise<void> => {
+    if (selectedFiles.size === 0) {
+      translationStore.setError('번역할 파일을 선택하세요.');
       return;
     }
 
+    const fileNames = Array.from(selectedFiles);
+    translationStore.clearError();
+
     try {
-      const blob = await downloadFromTranslated(selectedTranslatedFile);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = selectedTranslatedFile;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      // Progress 초기화
+      translationStore.setBatchProgress({
+        total: fileNames.length,
+        current: 0,
+        currentFile: '',
+      });
+
+      // 순차적 번역 (Progress 업데이트)
+      for (let i = 0; i < fileNames.length; i++) {
+        translationStore.setBatchProgress({
+          total: fileNames.length,
+          current: i,
+          currentFile: fileNames[i],
+        });
+
+        await translateBatch([fileNames[i]]);
+      }
+
+      // 완료
+      translationStore.setBatchProgress({
+        total: fileNames.length,
+        current: fileNames.length,
+        currentFile: '',
+      });
+
+      await fetchFiles();
+      translationStore.deselectAll();
     } catch (err) {
-      setError('파일 다운로드에 실패했습니다.');
+      const error = err as { response?: { data?: { error?: string } }; message?: string };
+      translationStore.setError(`배치 번역 실패: ${error.response?.data?.error || error.message}`);
+      console.error(err);
+    } finally {
+      translationStore.setBatchProgress(null);
+    }
+  };
+
+  const handleBatchDownload = async (): Promise<void> => {
+    if (selectedFiles.size === 0) {
+      translationStore.setError('다운로드할 파일을 선택하세요.');
+      return;
+    }
+
+    const fileNames = Array.from(selectedFiles);
+    translationStore.clearError();
+
+    try {
+      for (const fileName of fileNames) {
+        const metadata = fileMetadata.find(f => f.fileName === fileName);
+        if (!metadata || !metadata.translated) {
+          console.warn(`${fileName}은 번역되지 않은 파일입니다. 건너뜁니다.`);
+          continue;
+        }
+
+        const blob = await downloadTranslatedFile(fileName);
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName.replace(/\.(asta|astah|svg)$/, '_translated.$1');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
+    } catch (err) {
+      translationStore.setError('파일 다운로드에 실패했습니다.');
       console.error(err);
     }
   };
 
-  const handleDelete = async (type: string, fileName: string, e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
+  const handleDelete = async (fileName: string, e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
     e.stopPropagation();
 
     if (!confirm(`"${fileName}" 파일을 삭제하시겠습니까?`)) {
       return;
     }
 
-    setError('');
+    translationStore.clearError();
 
     try {
-      await deleteFile(type, fileName);
-      if (selectedTranslatedFile === fileName) {
-        setSelectedTranslatedFile(null);
-      }
+      await deleteFile('target', fileName);
       await fetchFiles();
     } catch (err) {
-      setError('파일 삭제에 실패했습니다.');
+      translationStore.setError('파일 삭제에 실패했습니다.');
       console.error(err);
     }
   };
 
-  const handleFileClick = (fileName: string, type: string): void => {
-    if (type === 'translated') {
-      setSelectedTranslatedFile(fileName);
-    }
-
-    if (onFileSelect) {
-      onFileSelect(fileName, type);
-    }
+  const formatDate = (dateStr: string | null): string => {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleString('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
-
-  const renderTargetPanel = (): React.ReactElement => (
-    <div
-      className={`file-panel ${isDragOver ? 'drop-target' : ''}`}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      <div className="file-panel-header">
-        <h3>Target (원본)</h3>
-        <span className="file-count">{targetFiles.length}개</span>
-      </div>
-      <div className="file-list">
-        {uploading && (
-          <p className="uploading-message">업로드 중...</p>
-        )}
-        {targetFiles.length === 0 && !uploading ? (
-          <p className="empty-message">
-            .asta, .svg 파일을 여기에 드래그하여 업로드
-          </p>
-        ) : (
-          targetFiles.map((fileName) => (
-            <div
-              key={fileName}
-              className="file-item"
-              onClick={() => handleFileClick(fileName, 'target')}
-            >
-              <span className="file-name">{fileName}</span>
-              <div className="file-actions">
-                <button
-                  className="translate-btn"
-                  onClick={(e) => handleTranslate(fileName, e)}
-                  disabled={translating[fileName]}
-                >
-                  {translating[fileName] ? '번역 중...' : '번역'}
-                </button>
-                <button
-                  className="delete-btn"
-                  onClick={(e) => handleDelete('target', fileName, e)}
-                  title="삭제"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-    </div>
-  );
-
-  const renderTranslatedPanel = (): React.ReactElement => (
-    <div className="file-panel">
-      <div className="file-panel-header">
-        <h3>Translated (번역됨)</h3>
-        <span className="file-count">{translatedFiles.length}개</span>
-      </div>
-      <div className="file-list">
-        {translatedFiles.length === 0 ? (
-          <p className="empty-message">번역된 파일이 없습니다</p>
-        ) : (
-          translatedFiles.map((fileName) => (
-            <div
-              key={fileName}
-              className={`file-item ${selectedTranslatedFile === fileName ? 'selected' : ''}`}
-              onClick={() => handleFileClick(fileName, 'translated')}
-            >
-              <span className="file-name">{fileName}</span>
-              <button
-                className="delete-btn"
-                onClick={(e) => handleDelete('translated', fileName, e)}
-                title="삭제"
-              >
-                ✕
-              </button>
-            </div>
-          ))
-        )}
-      </div>
-      {translatedFiles.length > 0 && (
-        <div className="translated-actions">
-          <button
-            className="download-btn"
-            onClick={handleDownload}
-            disabled={!selectedTranslatedFile}
-          >
-            다운로드
-          </button>
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <div className="file-list-container">
@@ -266,9 +221,90 @@ export function FileListPanel({ onFileSelect }: FileListPanelProps): React.React
 
       {error && <p className="error-message">{error}</p>}
 
-      <div className="file-panels">
-        {renderTargetPanel()}
-        {renderTranslatedPanel()}
+      {batchProgress && (
+        <div className="batch-progress">
+          <p>
+            번역 중: {batchProgress.current}/{batchProgress.total} - {batchProgress.currentFile}
+          </p>
+          <div className="progress-bar">
+            <div
+              className="progress-fill"
+              style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="batch-actions">
+        <button onClick={handleBatchTranslate} disabled={selectedFiles.size === 0 || !!batchProgress}>
+          선택 파일 번역 ({selectedFiles.size})
+        </button>
+        <button onClick={handleBatchDownload} disabled={selectedFiles.size === 0}>
+          선택 파일 다운로드 ({selectedFiles.size})
+        </button>
+      </div>
+
+      <div
+        className={`file-panel ${isDragOver ? 'drop-target' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <div className="file-panel-header">
+          <h3>Target 파일 목록</h3>
+          <span className="file-count">{fileMetadata.length}개</span>
+        </div>
+
+        {uploading && <p className="uploading-message">업로드 중...</p>}
+
+        {fileMetadata.length === 0 && !uploading ? (
+          <p className="empty-message">.asta, .svg 파일을 여기에 드래그하여 업로드</p>
+        ) : (
+          <table className="file-table">
+            <thead>
+              <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    checked={selectedFiles.size === fileMetadata.length && fileMetadata.length > 0}
+                    onChange={handleSelectAll}
+                  />
+                </th>
+                <th>파일명</th>
+                <th>번역됨</th>
+                <th>업로드 날짜</th>
+                <th>번역된 날짜</th>
+                <th>작업</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fileMetadata.map((file) => (
+                <tr key={file.fileName}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selectedFiles.has(file.fileName)}
+                      onChange={() => handleCheckboxChange(file.fileName)}
+                    />
+                  </td>
+                  <td>{file.fileName}</td>
+                  <td className="translated-status">{file.translated ? '✓' : '✗'}</td>
+                  <td>{formatDate(file.uploadedAt)}</td>
+                  <td>{formatDate(file.translatedAt)}</td>
+                  <td>
+                    <button
+                      className="delete-btn"
+                      onClick={(e) => handleDelete(file.fileName, e)}
+                      title="삭제"
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
