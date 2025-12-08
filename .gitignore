@@ -48,7 +48,6 @@ dist-ssr/
 .LSOverride
 
 # 업로드된 파일
-uploads/
 temp/
 target/
 translated/
