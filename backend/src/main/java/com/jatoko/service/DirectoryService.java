@@ -26,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.stream.Collectors;
+import com.jatoko.util.SvgOutlineDetector;
 
 @Slf4j
 @Service
@@ -90,12 +91,25 @@ public class DirectoryService {
         return fileList;
     }
 
-    public String uploadToTarget(MultipartFile file) throws IOException {
+    /**
+     * 업로드 결과 DTO
+     */
+    public record UploadResult(String fileName, boolean outlined) {}
+
+    public UploadResult uploadToTarget(MultipartFile file) throws IOException {
         String targetPath = directoryConfig.getTarget();
-        Path destination = Paths.get(targetPath, file.getOriginalFilename());
+        String fileName = file.getOriginalFilename();
+        Path destination = Paths.get(targetPath, fileName);
         Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
         log.info("File uploaded to target: {}", destination);
-        return file.getOriginalFilename();
+
+        // SVG 파일인 경우 아웃라인 여부 확인
+        boolean outlined = false;
+        if (fileName != null && fileName.toLowerCase().endsWith(".svg")) {
+            outlined = SvgOutlineDetector.isOutlined(destination.toFile());
+        }
+
+        return new UploadResult(fileName, outlined);
     }
 
     public Resource downloadFromTranslated(String fileName) throws IOException {
@@ -255,11 +269,18 @@ public class DirectoryService {
                 }
             }
 
+            // SVG 파일인 경우 아웃라인 여부 확인
+            boolean outlined = false;
+            if (lowerName.endsWith(".svg")) {
+                outlined = SvgOutlineDetector.isOutlined(targetFile);
+            }
+
             FileMetadataDto metadata = FileMetadataDto.builder()
                     .fileName(fileName)
                     .translated(translated)
                     .uploadedAt(uploadedAt)
                     .translatedAt(translatedAt)
+                    .outlined(outlined)
                     .build();
 
             metadataList.add(metadata);

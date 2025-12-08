@@ -14,6 +14,13 @@ export interface FileMetadata {
   translated: boolean;
   uploadedAt: string | null;
   translatedAt: string | null;
+  outlined: boolean;  // SVG 아웃라인 여부 (텍스트 추출 불가)
+}
+
+export interface UploadResponse {
+  fileName: string;
+  outlined: boolean;
+  message: string;
 }
 
 export interface BatchTranslationResponse {
@@ -70,8 +77,8 @@ export const getDirectoryFiles = async (directory: string): Promise<string[]> =>
 };
 
 // Target 디렉토리에 파일 업로드
-export const uploadToTarget = async (file: File): Promise<void> => {
-  await uploadFile<void>('/files/target', file);
+export const uploadToTarget = async (file: File): Promise<UploadResponse> => {
+  return uploadFile<UploadResponse>('/files/target', file);
 };
 
 // Translated 디렉토리에서 파일 다운로드

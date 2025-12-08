@@ -12,4 +12,5 @@ public class FileMetadataDto {
     private boolean translated;
     private LocalDateTime uploadedAt;
     private LocalDateTime translatedAt;
+    private boolean outlined;  // SVG 아웃라인 여부 (텍스트 추출 불가)
 }

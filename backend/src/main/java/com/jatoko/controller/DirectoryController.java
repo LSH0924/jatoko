@@ -38,8 +38,12 @@ public class DirectoryController {
     @PostMapping("/files/target")
     public ResponseEntity<?> uploadToTarget(@RequestParam("file") MultipartFile file) {
         try {
-            String fileName = directoryService.uploadToTarget(file);
-            return ResponseEntity.ok(Map.of("fileName", fileName, "message", "Upload successful"));
+            var result = directoryService.uploadToTarget(file);
+            return ResponseEntity.ok(Map.of(
+                    "fileName", result.fileName(),
+                    "outlined", result.outlined(),
+                    "message", "Upload successful"
+            ));
         } catch (IOException e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "Upload failed: " + e.getMessage()));
