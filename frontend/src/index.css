@@ -1,13 +1,21 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #05B084;
+  --color-background-light: #F1EDEA;
+  --color-background-dark: #121212;
+  --color-line: #015A84;
+  --color-button-secondary: #BADFCD;
+  --font-family-display: 'Roboto', sans-serif;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+body {
+  font-family: 'Roboto', sans-serif;
+}
+
+.drop-target {
+    border-radius: 8px;
+    border-color: #05B084;
+    border-style: dashed;
+    border-width: 2px;
 }

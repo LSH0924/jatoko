@@ -7,6 +7,7 @@ import {
   deleteBatch,
 } from '../services/api';
 import { useTranslationStore, translationStore } from '../stores/translationStore';
+import dayjs from 'dayjs';
 
 export function FileListPanel(): React.ReactElement {
   const fileMetadata = useTranslationStore((s) => s.fileMetadata);
@@ -17,6 +18,7 @@ export function FileListPanel(): React.ReactElement {
 
   const [uploading, setUploading] = useState<boolean>(false);
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
+  const [outlinedWarning, setOutlinedWarning] = useState<string[]>([]);
 
   const ALLOWED_EXTENSIONS = ['.asta', '.astah', '.svg'];
 
@@ -75,10 +77,18 @@ export function FileListPanel(): React.ReactElement {
     }
 
     setUploading(true);
+    setOutlinedWarning([]);
 
     try {
+      const outlinedFiles: string[] = [];
       for (const file of validFiles) {
-        await uploadToTarget(file);
+        const result = await uploadToTarget(file);
+        if (result.outlined) {
+          outlinedFiles.push(result.fileName);
+        }
+      }
+      if (outlinedFiles.length > 0) {
+        setOutlinedWarning(outlinedFiles);
       }
       await fetchFiles();
     } catch (err) {
@@ -207,104 +217,159 @@ export function FileListPanel(): React.ReactElement {
 
   const formatDate = (dateStr: string | null): string => {
     if (!dateStr) return '-';
-    const date = new Date(dateStr);
-    return date.toLocaleString('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return dayjs(dateStr).format('YYYY-MM-DD HH:mm:ss');
   };
 
   return (
-    <div className="file-list-container">
-      <div className="file-list-header">
-        <h2>파일 목록</h2>
-        <button onClick={fetchFiles} disabled={loading} className="refresh-btn">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 md:p-8 border border-gray-200 dark:border-gray-700">
+      <div className="flex flex-row justify-between items-center mb-6 gap-4">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">파일 목록</h2>
+        <button
+          onClick={fetchFiles}
+          disabled={loading}
+          className="bg-white text-gray-800 px-5 py-2.5 rounded-lg font-semibold text-sm border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+        >
+          <span className="material-icons text-base">refresh</span>
           {loading ? '로딩...' : '새로고침'}
         </button>
       </div>
 
-      {error && <p className="error-message">{error}</p>}
+      {error && (
+        <div className="bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-400 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      {outlinedWarning.length > 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-400 dark:border-yellow-700 text-yellow-800 dark:text-yellow-400 px-4 py-3 rounded mb-4 flex items-start gap-2">
+          <span className="material-icons text-xl">warning</span>
+          <div>
+            <p className="font-medium">텍스트 추출 불가 파일</p>
+            <p className="text-sm mt-1">
+              다음 SVG 파일은 텍스트가 패스로 변환(아웃라인화)되어 번역할 수 없습니다:
+            </p>
+            <ul className="text-sm mt-1 list-disc list-inside">
+              {outlinedWarning.map(f => <li key={f}>{f}</li>)}
+            </ul>
+            <button
+              onClick={() => setOutlinedWarning([])}
+              className="text-sm underline mt-2 hover:opacity-70"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
 
       {batchProgress && (
-        <div className="batch-progress">
-          <p>
+        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
             번역 중: {batchProgress.current}/{batchProgress.total} - {batchProgress.currentFile}
           </p>
-          <div className="progress-bar">
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
             <div
-              className="progress-fill"
+              className="bg-primary h-2 rounded-full transition-all duration-300"
               style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
             />
           </div>
         </div>
       )}
 
-      <div className="batch-actions">
-        <button onClick={handleBatchTranslate} disabled={selectedFiles.size === 0 || !!batchProgress}>
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <button
+          onClick={handleBatchTranslate}
+          disabled={selectedFiles.size === 0 || !!batchProgress}
+          className="bg-primary text-white px-4 py-2 rounded-md font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           선택 파일 번역 ({selectedFiles.size})
         </button>
-        <button onClick={handleBatchDownload} disabled={selectedFiles.size === 0}>
-          선택 파일 다운로드 ({selectedFiles.size})
+        <button
+          onClick={handleBatchDownload}
+          disabled={selectedFiles.size === 0}
+          className="bg-button-secondary text-line px-4 py-2 rounded-md font-medium text-sm hover:bg-opacity-80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          선택한 파일의 번역 다운로드 ({selectedFiles.size})
         </button>
-        <button onClick={handleBatchDelete} disabled={selectedFiles.size === 0} className="delete-btn">
+        <button
+          onClick={handleBatchDelete}
+          disabled={selectedFiles.size === 0}
+          className="bg-button-secondary text-line px-4 py-2 rounded-md font-medium text-sm hover:bg-opacity-80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           선택 파일 삭제 ({selectedFiles.size})
         </button>
       </div>
 
-      <div
-        className={`file-panel ${isDragOver ? 'drop-target' : ''}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <div className="file-panel-header">
-          <h3>Target 파일 목록</h3>
-          <span className="file-count">{fileMetadata.length}개</span>
-        </div>
+      <hr className="border-t-2 border-line mb-6"/>
 
-        {uploading && <p className="uploading-message">업로드 중...</p>}
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Target 파일 목록</h3>
+        <span className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-medium px-2.5 py-1 rounded-full">
+          {fileMetadata.length}개
+        </span>
+      </div>
 
-        {fileMetadata.length === 0 && !uploading ? (
-          <p className="empty-message">.asta, .svg 파일을 여기에 드래그하여 업로드</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>
+      <div className={`overflow-x-auto ${isDragOver ? 'drop-target' : ''}`}>
+        <table
+               className="w-full text-sm text-left text-gray-600 dark:text-gray-400"
+               onDragOver={handleDragOver}
+               onDragLeave={handleDragLeave}
+               onDrop={handleDrop}>
+          <thead className="text-sm text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-700">
+            <tr>
+              <th scope="col" className="p-4 w-4">
+                <input
+                  type="checkbox"
+                  checked={selectedFiles.size === fileMetadata.length && fileMetadata.length > 0}
+                  onChange={handleSelectAll}
+                  className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-offset-gray-800 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
+                />
+              </th>
+              <th scope="col" className="px-6 py-3 font-medium text-left">파일명</th>
+              <th scope="col" className="px-6 py-3 font-medium text-left">번역됨</th>
+              <th scope="col" className="px-6 py-3 font-medium text-left">업로드 날짜</th>
+              <th scope="col" className="px-6 py-3 font-medium text-left">번역된 날짜</th>
+            </tr>
+          </thead>
+          <tbody>
+            {uploading && <tr><td colSpan={5} className="px-6 py-3 font-medium text-left uploading-message">업로드 중...</td></tr>}
+
+            {fileMetadata.map((file, index) => (
+              <tr
+                key={file.fileName}
+                className={`bg-white dark:bg-gray-800 ${index < fileMetadata.length - 1 ? 'border-b dark:border-gray-700' : ''} hover:bg-gray-50 dark:hover:bg-gray-600`}
+              >
+                <td className="w-4 p-4">
                   <input
                     type="checkbox"
-                    checked={selectedFiles.size === fileMetadata.length && fileMetadata.length > 0}
-                    onChange={handleSelectAll}
+                    checked={selectedFiles.has(file.fileName)}
+                    onChange={() => handleCheckboxChange(file.fileName)}
+                    className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary dark:focus:ring-offset-gray-800 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
                   />
+                </td>
+                <th scope="row" className="px-6 py-4 font-medium text-gray-900 dark:text-white">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="whitespace-nowrap">{file.fileName}</span>
+                    {file.outlined && (
+                      <span className="inline-flex items-center gap-1 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-400 text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap">
+                        <span className="material-icons text-xs">warning</span>
+                        텍스트 추출 불가
+                      </span>
+                    )}
+                  </div>
                 </th>
-                <th>파일명</th>
-                <th>번역됨</th>
-                <th>업로드 날짜</th>
-                <th>번역된 날짜</th>
+                <td className="px-6 py-4">
+                  {file.translated ? (
+                    <span className="material-icons text-primary text-xl">check</span>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </td>
+                <td className="px-6 py-4">{formatDate(file.uploadedAt)}</td>
+                <td className="px-6 py-4">{formatDate(file.translatedAt)}</td>
               </tr>
-            </thead>
-            <tbody>
-              {fileMetadata.map((file) => (
-                <tr key={file.fileName}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={selectedFiles.has(file.fileName)}
-                      onChange={() => handleCheckboxChange(file.fileName)}
-                    />
-                  </td>
-                  <td>{file.fileName}</td>
-                  <td className="translated-status">{file.translated ? '✓' : '✗'}</td>
-                  <td>{formatDate(file.uploadedAt)}</td>
-                  <td>{formatDate(file.translatedAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
