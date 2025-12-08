@@ -48,8 +48,8 @@ public class SvgStyleManager {
             ".jp-wrapper .jp-overlay {\n" +
             "  position: absolute;\n" +
             "  top: -4px;\n" +
-            "  left: -4px;\n" +
-            "  width: calc(100% + 8px);\n" +
+            "  left: -2px;\n" +
+            "  width: calc(100% + 6px);\n" +
             "  height: calc(100% + 8px);\n" +
             "  display: flex;\n" +
             "  align-items: center;\n" +

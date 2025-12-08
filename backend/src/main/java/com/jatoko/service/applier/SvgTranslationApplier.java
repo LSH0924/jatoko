@@ -167,10 +167,11 @@ public class SvgTranslationApplier {
                 Element overlaySpan = document.createElement("span");
                 overlaySpan.setAttribute("class", "jp-overlay");
 
-                // 원본과 동일한 font-size 적용
+                // 원본보다 작은 font-size 적용. 10이상은 1, 15이상은 2 작아짐.
                 if (!fontSize.isEmpty()) {
+                    String smallerFontSize = reduceFontSize(fontSize);
                     String style = overlaySpan.getAttribute("style");
-                    overlaySpan.setAttribute("style", style + "font-size: " + fontSize + ";");
+                    overlaySpan.setAttribute("style", style + "font-size: " + smallerFontSize + ";");
                 }
 
                 overlaySpan.setTextContent(translatedText);
@@ -223,6 +224,49 @@ public class SvgTranslationApplier {
         }
 
         return ""; // font-size를 찾지 못한 경우
+    }
+
+    /**
+     * font-size 값을 지정된 픽셀만큼 줄입니다.
+     *
+     * @param fontSize 원본 font-size (예: "12px", "14pt")
+     * @return 줄어든 font-size (예: "11px") 또는 원본 값
+     */
+    private String reduceFontSize(String fontSize) {
+        int reduceBy = 1;
+        // px 단위인 경우만 처리
+        if (fontSize.endsWith("px")) {
+            try {
+                String numPart = fontSize.replace("px", "").trim();
+                double fontSizeDouble = Double.parseDouble(numPart);
+                if (fontSizeDouble >= 15.0) {
+                    reduceBy = 2;
+                } else if (fontSizeDouble <= 10.0) {
+                    reduceBy = 0;
+                }
+                double reduced = Math.max(1, fontSizeDouble - reduceBy);
+                return reduced + "px";
+            } catch (NumberFormatException e) {
+                return fontSize;
+            }
+        }
+        // pt 단위인 경우
+        if (fontSize.endsWith("pt")) {
+            try {
+                String numPart = fontSize.replace("pt", "").trim();
+                double fontSizeDouble = Double.parseDouble(numPart);
+                if (fontSizeDouble >= 15.0) {
+                    reduceBy = 2;
+                } else if (fontSizeDouble < 10.0) {
+                    reduceBy = 0;
+                }
+                double reduced = Math.max(1, fontSizeDouble - reduceBy);
+                return reduced + "pt";
+            } catch (NumberFormatException e) {
+                return fontSize;
+            }
+        }
+        return fontSize;
     }
 
     /**
