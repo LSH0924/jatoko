@@ -254,6 +254,9 @@ public class DirectoryService {
             boolean translated = false;
             LocalDateTime translatedAt = null;
 
+            // 번역 버전 (번역 파일 개수)
+            Integer version = null;
+
             if (translatedDir.exists() && translatedDir.isDirectory()) {
                 // 번역된 파일 찾기 (fileName_translated.ext 또는 fileName_translated_N.ext)
                 String baseName = fileName.replaceAll("\\.(asta|astah|svg)$", "");
@@ -261,6 +264,7 @@ public class DirectoryService {
 
                 if (!translatedFiles.isEmpty()) {
                     translated = true;
+                    version = translatedFiles.size();
                     // 가장 최신 번역 파일의 날짜
                     translatedAt = translatedFiles.stream()
                             .map(f -> getFileLastModified(f.toPath()))
@@ -281,6 +285,7 @@ public class DirectoryService {
                     .uploadedAt(uploadedAt)
                     .translatedAt(translatedAt)
                     .outlined(outlined)
+                    .version(version)
                     .build();
 
             metadataList.add(metadata);

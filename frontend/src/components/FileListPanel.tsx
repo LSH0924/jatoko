@@ -359,12 +359,13 @@ export function FileListPanel(): React.ReactElement {
               </th>
               <th scope="col" className="px-6 py-3 font-medium text-left">파일명</th>
               <th scope="col" className="px-6 py-3 font-medium text-left">번역됨</th>
+              <th scope="col" className="px-6 py-3 font-medium text-left">버전</th>
               <th scope="col" className="px-6 py-3 font-medium text-left">업로드 날짜</th>
               <th scope="col" className="px-6 py-3 font-medium text-left">번역된 날짜</th>
             </tr>
           </thead>
           <tbody>
-            {uploading && <tr><td colSpan={5} className="px-6 py-3 font-medium text-left uploading-message">업로드 중...</td></tr>}
+            {uploading && <tr><td colSpan={6} className="px-6 py-3 font-medium text-left uploading-message">업로드 중...</td></tr>}
 
             {fileMetadata.map((file, index) => (
               <tr
@@ -396,6 +397,9 @@ export function FileListPanel(): React.ReactElement {
                   ) : (
                     <span className="text-gray-400">-</span>
                   )}
+                </td>
+                <td className="px-6 py-4">
+                  {file.version !== null ? file.version : '-'}
                 </td>
                 <td className="px-6 py-4">{formatDate(file.uploadedAt)}</td>
                 <td className="px-6 py-4">{formatDate(file.translatedAt)}</td>

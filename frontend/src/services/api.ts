@@ -15,6 +15,7 @@ export interface FileMetadata {
   uploadedAt: string | null;
   translatedAt: string | null;
   outlined: boolean;  // SVG 아웃라인 여부 (텍스트 추출 불가)
+  version: number | null;  // 번역 버전 (번역 파일 개수, null이면 번역 없음)
 }
 
 export interface UploadResponse {
