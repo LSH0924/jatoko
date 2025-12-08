@@ -117,8 +117,35 @@ export function FileListPanel(): React.ReactElement {
       return;
     }
 
-    const fileNames = Array.from(selectedFiles);
-    translationStore.clearError();
+    // outlined SVG 파일 필터링
+    const selectedFileNames = Array.from(selectedFiles);
+    const outlinedFiles = selectedFileNames.filter(fileName => {
+      const metadata = fileMetadata.find(f => f.fileName === fileName);
+      return metadata?.outlined === true;
+    });
+    const translatableFiles = selectedFileNames.filter(fileName => {
+      const metadata = fileMetadata.find(f => f.fileName === fileName);
+      return metadata?.outlined !== true;
+    });
+
+    // outlined 파일만 선택된 경우
+    if (translatableFiles.length === 0) {
+      translationStore.setError(
+        `선택한 파일이 모두 텍스트가 패스로 변환(아웃라인화)되어 번역할 수 없습니다: ${outlinedFiles.join(', ')}`
+      );
+      return;
+    }
+
+    // 일부 outlined 파일이 있는 경우 경고
+    if (outlinedFiles.length > 0) {
+      translationStore.setError(
+        `다음 파일은 아웃라인화되어 번역에서 제외됩니다: ${outlinedFiles.join(', ')}`
+      );
+    } else {
+      translationStore.clearError();
+    }
+
+    const fileNames = translatableFiles;
 
     try {
       // Progress 초기화
@@ -164,16 +191,23 @@ export function FileListPanel(): React.ReactElement {
     }
 
     const fileNames = Array.from(selectedFiles);
+
+    // 번역된 파일만 필터링
+    const translatedFiles = fileNames.filter(fileName => {
+      const metadata = fileMetadata.find(f => f.fileName === fileName);
+      return metadata?.translated === true;
+    });
+
+    // 번역된 파일이 없는 경우
+    if (translatedFiles.length === 0) {
+      translationStore.setError('다운로드 할 수 있는 번역 파일이 없습니다.');
+      return;
+    }
+
     translationStore.clearError();
 
     try {
-      for (const fileName of fileNames) {
-        const metadata = fileMetadata.find(f => f.fileName === fileName);
-        if (!metadata || !metadata.translated) {
-          console.warn(`${fileName}은 번역되지 않은 파일입니다. 건너뜁니다.`);
-          continue;
-        }
-
+      for (const fileName of translatedFiles) {
         const blob = await downloadTranslatedFile(fileName);
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
