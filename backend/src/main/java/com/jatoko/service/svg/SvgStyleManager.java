@@ -39,16 +39,18 @@ public class SvgStyleManager {
             "  fill: #2563eb;\n" +
             "  font-weight: bold;\n" +
             "}\n" +
-            /* foreignObject 내부 HTML 요소 오버레이 (text-edit 재활용) */
-            ".text-edit.jp-translated {\n" +
+            /* foreignObject 내부 HTML 요소 오버레이 (원문 span 크기로 hover 영역 제한) */
+            ".jp-wrapper {\n" +
+            "  position: relative;\n" +
+            "  display: inline-block;\n" +
             "  cursor: pointer;\n" +
             "}\n" +
-            ".text-edit.jp-translated .translation-overlay {\n" +
+            ".jp-wrapper .jp-overlay {\n" +
             "  position: absolute;\n" +
-            "  top: 0;\n" +
-            "  left: 0;\n" +
-            "  width: 100%;\n" +
-            "  height: 100%;\n" +
+            "  top: -4px;\n" +
+            "  left: -4px;\n" +
+            "  width: calc(100% + 8px);\n" +
+            "  height: calc(100% + 8px);\n" +
             "  display: flex;\n" +
             "  align-items: center;\n" +
             "  justify-content: center;\n" +
@@ -61,7 +63,7 @@ public class SvgStyleManager {
             "  transition: opacity 0.3s ease;\n" +
             "  z-index: 1000;\n" +
             "}\n" +
-            ".text-edit.jp-translated:hover .translation-overlay {\n" +
+            ".jp-wrapper:hover .jp-overlay {\n" +
             "  opacity: 1;\n" +
             "}";
 

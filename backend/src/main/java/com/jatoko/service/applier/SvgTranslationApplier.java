@@ -141,8 +141,8 @@ public class SvgTranslationApplier {
 
     /**
      * <foreignObject> 내부에 CSS 기반 오버레이를 추가합니다.
-     * 기존 text-edit span에 jp-translated 클래스를 추가하고 오버레이를 직접 삽입합니다.
-     * 호버 시 번역이 원문 위에 완전히 덧씌워져 표시됩니다.
+     * 원문 span을 jp-wrapper로 감싸고, 번역을 형제로 배치합니다.
+     * 호버 영역은 원문 span 크기로 제한됩니다.
      */
     private void applyToForeignObjectText(Element foreignObject, String translatedText) {
         // foreignObject → div → div → div → span.text-edit 구조 탐색
@@ -165,7 +165,7 @@ public class SvgTranslationApplier {
 
                 // 번역 오버레이 span 생성 (CSS로 숨김/표시)
                 Element overlaySpan = document.createElement("span");
-                overlaySpan.setAttribute("class", "translation-overlay");
+                overlaySpan.setAttribute("class", "jp-overlay");
 
                 // 원본과 동일한 font-size 적용
                 if (!fontSize.isEmpty()) {
@@ -175,8 +175,15 @@ public class SvgTranslationApplier {
 
                 overlaySpan.setTextContent(translatedText);
 
-                // 기존 span에 오버레이 직접 추가
-                span.appendChild(overlaySpan);
+                // jp-wrapper span 생성 (원문 span 크기로 hover 영역 제한)
+                Element wrapperSpan = document.createElement("span");
+                wrapperSpan.setAttribute("class", "jp-wrapper");
+
+                // 원문 span을 wrapper로 감싸기
+                Node parentNode = span.getParentNode();
+                parentNode.replaceChild(wrapperSpan, span);
+                wrapperSpan.appendChild(span);
+                wrapperSpan.appendChild(overlaySpan);
 
                 log.debug("foreignObject에 CSS 오버레이 추가: original={}, translation={}, fontSize={}",
                           originalText, translatedText, fontSize);

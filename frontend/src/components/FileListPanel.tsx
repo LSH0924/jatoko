@@ -174,7 +174,6 @@ export function FileListPanel(): React.ReactElement {
       });
 
       await fetchFiles();
-      translationStore.deselectAll();
     } catch (err) {
       const error = err as { response?: { data?: { error?: string } }; message?: string };
       translationStore.setError(`배치 번역 실패: ${error.response?.data?.error || error.message}`);
