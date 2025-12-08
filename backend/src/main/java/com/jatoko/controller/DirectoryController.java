@@ -129,6 +129,23 @@ public class DirectoryController {
         }
     }
 
+    @PostMapping("/files/batch-delete")
+    public ResponseEntity<?> batchDelete(@RequestBody Map<String, List<String>> request) {
+        try {
+            List<String> fileNames = request.get("fileNames");
+            if (fileNames == null || fileNames.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "fileNames is required"));
+            }
+
+            directoryService.deleteFilesInBatch(fileNames);
+            return ResponseEntity.ok(Map.of("message", "Files deleted successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Batch delete failed: " + e.getMessage()));
+        }
+    }
+
     @GetMapping("/download/translated/{targetFileName}")
     public ResponseEntity<Resource> downloadLatestTranslated(@PathVariable String targetFileName) {
         try {

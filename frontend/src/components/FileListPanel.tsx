@@ -288,7 +288,7 @@ export function FileListPanel(): React.ReactElement {
           disabled={selectedFiles.size === 0}
           className="bg-button-secondary text-line px-4 py-2 rounded-md font-medium text-sm hover:bg-opacity-80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          선택한 파일의 번역 다운로드 ({selectedFiles.size})
+          번역 파일 다운로드 ({selectedFiles.size})
         </button>
         <button
           onClick={handleBatchDelete}

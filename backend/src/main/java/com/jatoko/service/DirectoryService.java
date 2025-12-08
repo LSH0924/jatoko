@@ -352,6 +352,19 @@ public class DirectoryService {
     }
 
     /**
+     * 여러 파일을 target 디렉토리에서 삭제
+     */
+    public void deleteFilesInBatch(List<String> fileNames) {
+        for (String fileName : fileNames) {
+            try {
+                deleteFile("target", fileName);
+            } catch (Exception e) {
+                log.error("Failed to delete file: {}", fileName, e);
+            }
+        }
+    }
+
+    /**
      * target 파일명에 대응하는 최신 번역 파일 다운로드
      */
     public Resource downloadLatestTranslatedFile(String targetFileName) throws IOException {
