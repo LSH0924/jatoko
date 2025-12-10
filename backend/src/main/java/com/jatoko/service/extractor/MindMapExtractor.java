@@ -5,6 +5,7 @@ import com.change_vision.jude.api.inf.model.IMindMapDiagram;
 import com.change_vision.jude.api.inf.presentation.INodePresentation;
 import com.jatoko.model.DiagramNode;
 import com.jatoko.util.JapaneseDetector;
+import com.jatoko.util.KoreanDetector;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
@@ -121,18 +122,23 @@ public class MindMapExtractor extends BaseExtractor implements DiagramExtractor 
         try {
             String label = topic.getLabel();
             if (label != null && !label.isEmpty()) {
-                // 추출 시와 동일한 방식으로 ID 생성
-                String topicId = generateStableTopicId(topic, label);
-
-                if (translationMap.containsKey(topicId)) {
-                    String translatedLabel = translationMap.get(topicId);
-                    // 원문 아래 줄바꿈 후 번역본 추가
-                    topic.setLabel(label + "\n" + translatedLabel);
-                    count++;
+                // 이미 한글이 포함되어 있으면 스킵 (이미 번역된 요소)
+                if (KoreanDetector.containsKorean(label)) {
+                    // 자식 토픽은 계속 처리
                 } else {
-                    matchFailureCount++;
-                    if (matchFailureCount <= MAX_FAILURE_LOG) {
-                        System.err.println("마인드맵 토픽 ID 매칭 실패: " + topicId + " (라벨: " + label + ")");
+                    // 추출 시와 동일한 방식으로 ID 생성
+                    String topicId = generateStableTopicId(topic, label);
+
+                    if (translationMap.containsKey(topicId)) {
+                        String translatedLabel = translationMap.get(topicId);
+                        // 원문 아래 줄바꿈 후 번역본 추가
+                        topic.setLabel(label + "\n" + translatedLabel);
+                        count++;
+                    } else {
+                        matchFailureCount++;
+                        if (matchFailureCount <= MAX_FAILURE_LOG) {
+                            System.err.println("마인드맵 토픽 ID 매칭 실패: " + topicId + " (라벨: " + label + ")");
+                        }
                     }
                 }
             }

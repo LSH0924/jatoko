@@ -7,6 +7,7 @@ import com.change_vision.jude.api.inf.model.IPackage;
 import com.change_vision.jude.api.inf.project.ProjectAccessor;
 import com.jatoko.model.DiagramNode;
 import com.jatoko.service.extractor.DiagramExtractor;
+import com.jatoko.util.KoreanDetector;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -142,9 +143,13 @@ public class DiagramTranslationApplier {
                     if (diagramNameMap != null && diagramNameMap.containsKey(diagram.getId())) {
                         try {
                             String originalName = diagram.getName();
-                            String translatedName = diagramNameMap.get(diagram.getId());
-                            diagram.setName(originalName + "\n" + translatedName);
-                            countHolder[0]++;
+
+                            // 이미 한글이 포함되어 있으면 스킵 (이미 번역된 요소)
+                            if (!KoreanDetector.containsKorean(originalName)) {
+                                String translatedName = diagramNameMap.get(diagram.getId());
+                                diagram.setName(originalName + "\n" + translatedName);
+                                countHolder[0]++;
+                            }
                         } catch (Exception e) {
                             System.err.println("다이어그램 이름 변경 실패: " + e.getMessage());
                         }
@@ -260,10 +265,14 @@ public class DiagramTranslationApplier {
                     if (diagramNameMap.containsKey(diagram.getId())) {
                         try {
                             String originalName = diagram.getName();
-                            String translatedName = diagramNameMap.get(diagram.getId());
-                            diagram.setName(originalName + " / " + translatedName);
-                            countHolder[0]++;
-                            System.out.println("다이어그램 이름 번역: " + diagram.getId() + " → " + translatedName);
+
+                            // 이미 한글이 포함되어 있으면 스킵 (이미 번역된 요소)
+                            if (!KoreanDetector.containsKorean(originalName)) {
+                                String translatedName = diagramNameMap.get(diagram.getId());
+                                diagram.setName(originalName + " / " + translatedName);
+                                countHolder[0]++;
+                                System.out.println("다이어그램 이름 번역: " + diagram.getId() + " → " + translatedName);
+                            }
                         } catch (Exception e) {
                             System.err.println("다이어그램 이름 변경 실패: " + e.getMessage());
                         }
