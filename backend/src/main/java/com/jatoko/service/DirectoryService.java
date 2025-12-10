@@ -36,6 +36,7 @@ public class DirectoryService {
     private final DirectoryConfig directoryConfig;
     private final AstahParserService astahParserService;
     private final SvgParserService svgParserService;
+    private final ProgressService progressService;
 
     @PostConstruct
     public void init() {
@@ -155,13 +156,19 @@ public class DirectoryService {
     }
 
     /**
-     * target 디렉토리의 파일을 번역하여 translated 디렉토리에 저장
+     * target 디렉토리의 파일을 번역하여 translated 디렉토리에 저장 (진행률 보고 포함)
      */
     public String translateFile(String fileName) throws Exception {
+        return translateFile(fileName, null);
+    }
+
+    public String translateFile(String fileName, String clientId) throws Exception {
         Path targetPath = Paths.get(directoryConfig.getTarget(), fileName);
 
         if (!Files.exists(targetPath)) {
-            throw new IOException("File not found: " + fileName);
+            String error = "File not found: " + fileName;
+            if (clientId != null) progressService.sendError(clientId, error);
+            throw new IOException(error);
         }
 
         File inputFile = targetPath.toFile();
@@ -169,28 +176,46 @@ public class DirectoryService {
         String outputFileName;
         Path outputPath;
 
-        if (lowerFileName.endsWith(".asta") || lowerFileName.endsWith(".astah")) {
-            // Astah 파일 번역
-            String baseName = fileName.replaceAll("\\.(asta|astah)$", "");
-            outputFileName = getUniqueFileName(baseName + "_translated", ".asta");
-            outputPath = Paths.get(directoryConfig.getTranslated(), outputFileName);
+        // 진행률 콜백 생성
+        ProgressCallback callback = (message, percentage) -> {
+            if (clientId != null) {
+                progressService.sendProgress(clientId, message, percentage);
+            }
+        };
 
-            astahParserService.extractTranslateAndApply(inputFile, outputPath.toFile());
+        try {
+            if (lowerFileName.endsWith(".asta") || lowerFileName.endsWith(".astah")) {
+                // Astah 파일 번역
+                String baseName = fileName.replaceAll("\\.(asta|astah)$", "");
+                outputFileName = getUniqueFileName(baseName + "_translated", ".asta");
+                outputPath = Paths.get(directoryConfig.getTranslated(), outputFileName);
 
-        } else if (lowerFileName.endsWith(".svg")) {
-            // SVG 파일 번역
-            String baseName = fileName.replaceAll("\\.svg$", "");
-            outputFileName = getUniqueFileName(baseName + "_translated", ".svg");
-            outputPath = Paths.get(directoryConfig.getTranslated(), outputFileName);
+                astahParserService.extractTranslateAndApply(inputFile, outputPath.toFile(), callback);
 
-            svgParserService.extractTranslateAndApply(inputFile, outputPath.toFile());
+            } else if (lowerFileName.endsWith(".svg")) {
+                // SVG 파일 번역
+                String baseName = fileName.replaceAll("\\.svg$", "");
+                outputFileName = getUniqueFileName(baseName + "_translated", ".svg");
+                outputPath = Paths.get(directoryConfig.getTranslated(), outputFileName);
 
-        } else {
-            throw new IllegalArgumentException("Unsupported file type: " + fileName);
+                svgParserService.extractTranslateAndApply(inputFile, outputPath.toFile(), callback);
+
+            } else {
+                throw new IllegalArgumentException("Unsupported file type: " + fileName);
+            }
+
+            log.info("File translated: {} -> {}", fileName, outputFileName);
+            if (clientId != null) {
+                progressService.complete(clientId);
+            }
+            return outputFileName;
+
+        } catch (Exception e) {
+            if (clientId != null) {
+                progressService.sendError(clientId, "Translation failed: " + e.getMessage());
+            }
+            throw e;
         }
-
-        log.info("File translated: {} -> {}", fileName, outputFileName);
-        return outputFileName;
     }
 
     /**

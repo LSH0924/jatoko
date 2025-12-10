@@ -61,17 +61,26 @@ public abstract class BaseParserService<T> implements ParserService {
 
     @Override
     public void extractTranslateAndApply(File inputFile, File outputFile) {
+        extractTranslateAndApply(inputFile, outputFile, (msg, pct) -> {});
+    }
+
+    public void extractTranslateAndApply(File inputFile, File outputFile, ProgressCallback progressCallback) {
         try {
             log.info("통합 번역 시작: {}", inputFile.getName());
+            progressCallback.onProgress("파일 분석 및 텍스트 추출 중...", 10);
 
             // 1. 노드 추출
             List<T> allNodes = extractNodes(inputFile);
             if (allNodes.isEmpty()) {
                 log.warn("번역할 텍스트가 없습니다. 원본 파일을 복사합니다.");
+                progressCallback.onProgress("번역할 텍스트 없음. 원본 복사 중...", 90);
                 java.nio.file.Files.copy(inputFile.toPath(), outputFile.toPath(),
                         java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                progressCallback.onProgress("완료", 100);
                 return;
             }
+
+            progressCallback.onProgress("메타데이터 로드 및 비교 중...", 20);
 
             // 2. 메타데이터 로드 및 비교
             TranslationMetadata metadata = metadataService.loadMetadata(inputFile);
@@ -106,8 +115,9 @@ public abstract class BaseParserService<T> implements ParserService {
                 // 청크 단위로 번역 (DeepL API 제한 고려)
                 final int CHUNK_SIZE = 50;
                 List<String> translatedTexts = new ArrayList<>();
+                int totalToTranslate = originalTexts.size();
                 
-                for (int i = 0; i < originalTexts.size(); i += CHUNK_SIZE) {
+                for (int i = 0; i < totalToTranslate; i += CHUNK_SIZE) {
                     if (i > 0) {
                         try {
                             TimeUnit.MILLISECONDS.sleep(500);
@@ -115,37 +125,33 @@ public abstract class BaseParserService<T> implements ParserService {
                             Thread.currentThread().interrupt();
                         }
                     }
-                    int end = Math.min(i + CHUNK_SIZE, originalTexts.size());
+                    
+                    // 진행률 계산 (20% ~ 80% 구간)
+                    int currentProgress = 20 + (int)((double)i / totalToTranslate * 60);
+                    progressCallback.onProgress(
+                        String.format("DeepL 번역 중... (%d/%d)", i, totalToTranslate), 
+                        currentProgress
+                    );
+
+                    int end = Math.min(i + CHUNK_SIZE, totalToTranslate);
                     List<String> chunk = originalTexts.subList(i, end);
                     translatedTexts.addAll(translator.translate(chunk));
-                    log.info("번역 진행: {}/{}", translatedTexts.size(), originalTexts.size());
+                    log.info("번역 진행: {}/{}", translatedTexts.size(), totalToTranslate);
                 }
 
                 for (int i = 0; i < nodesToTranslate.size(); i++) {
                     setTranslatedText(nodesToTranslate.get(i), translatedTexts.get(i));
                 }
+            } else {
+                progressCallback.onProgress("모든 텍스트가 이미 번역되어 있습니다.", 80);
             }
 
+            progressCallback.onProgress("번역 후처리 중...", 85);
             // 4. 후처리 (중복 노드 처리 등)
             postProcessTranslations(allNodes, nodesToTranslate);
 
             // 5. 메타데이터 업데이트
             Map<String, NodeTranslation> newTranslations = new HashMap<>();
-            for (T node : allNodes) {
-                // 번역된 텍스트가 있는 경우에만 메타데이터에 저장
-                // (중복 노드도 번역된 텍스트가 설정되어 있으면 저장됨)
-                // 주의: getId(node)가 중복될 경우 덮어씌워짐. Astah의 경우 ID가 고유하므로 문제 없음.
-                // Svg의 경우도 ID가 고유함.
-                String translated = null;
-                // getTranslatedText가 protected라서 직접 호출 불가? 아니, 같은 클래스 내라 가능하지만
-                // T 타입에는 메서드가 없으므로 추상 메서드 사용해야 함.
-                // 하지만 getter 추상 메서드를 안 만들었네?
-                // setTranslatedText만 만들었음.
-                // -> getTranslatedText도 필요함.
-                // 하지만 여기서는 이미 setTranslatedText로 설정된 값을 가져와야 하는데...
-                // T 객체 자체에 값이 설정되어 있다고 가정함.
-                // getTranslatedText 추상 메서드 추가 필요.
-            }
             
             // 다시 루프 돌면서 메타데이터 생성
             for (T node : allNodes) {
@@ -164,9 +170,12 @@ public abstract class BaseParserService<T> implements ParserService {
             metadata.setTranslations(newTranslations);
             metadataService.saveMetadata(inputFile, metadata);
 
+            progressCallback.onProgress("파일 생성 및 적용 중...", 90);
+
             // 6. 번역 적용
             applyTranslationsInternal(inputFile, allNodes, outputFile);
 
+            progressCallback.onProgress("완료", 100);
             log.info("통합 번역 완료: {} -> {}", inputFile.getName(), outputFile.getName());
 
         } catch (Exception e) {

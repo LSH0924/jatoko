@@ -2,9 +2,12 @@ import React, { useState, useEffect, useCallback, DragEvent } from 'react';
 import {
   getFileMetadata,
   uploadToTarget,
-  translateBatch,
+  translateTargetFile,
   downloadTranslatedFile,
   deleteBatch,
+  generateClientId,
+  subscribeToProgress,
+  closeEventSource
 } from '../services/api';
 import { useTranslationStore, translationStore } from '../stores/translationStore';
 import dayjs from 'dayjs';
@@ -15,6 +18,7 @@ export function FileListPanel(): React.ReactElement {
   const loading = useTranslationStore((s) => s.loading);
   const error = useTranslationStore((s) => s.error);
   const batchProgress = useTranslationStore((s) => s.batchProgress);
+  const fileProgress = useTranslationStore((s) => s.fileProgress);
 
   const [uploading, setUploading] = useState<boolean>(false);
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
@@ -117,7 +121,6 @@ export function FileListPanel(): React.ReactElement {
       return;
     }
 
-    // outlined SVG 파일 필터링
     const selectedFileNames = Array.from(selectedFiles);
     const outlinedFiles = selectedFileNames.filter(fileName => {
       const metadata = fileMetadata.find(f => f.fileName === fileName);
@@ -128,7 +131,6 @@ export function FileListPanel(): React.ReactElement {
       return metadata?.outlined !== true;
     });
 
-    // outlined 파일만 선택된 경우
     if (translatableFiles.length === 0) {
       translationStore.setError(
         `선택한 파일이 모두 텍스트가 패스로 변환(아웃라인화)되어 번역할 수 없습니다: ${outlinedFiles.join(', ')}`
@@ -136,7 +138,6 @@ export function FileListPanel(): React.ReactElement {
       return;
     }
 
-    // 일부 outlined 파일이 있는 경우 경고
     if (outlinedFiles.length > 0) {
       translationStore.setError(
         `다음 파일은 아웃라인화되어 번역에서 제외됩니다: ${outlinedFiles.join(', ')}`
@@ -148,25 +149,72 @@ export function FileListPanel(): React.ReactElement {
     const fileNames = translatableFiles;
 
     try {
-      // Progress 초기화
       translationStore.setBatchProgress({
         total: fileNames.length,
         current: 0,
         currentFile: '',
       });
 
-      // 순차적 번역 (Progress 업데이트)
       for (let i = 0; i < fileNames.length; i++) {
+        const fileName = fileNames[i];
+
         translationStore.setBatchProgress({
           total: fileNames.length,
           current: i,
-          currentFile: fileNames[i],
+          currentFile: fileName,
         });
 
-        await translateBatch([fileNames[i]]);
+        translationStore.setFileProgress({
+          message: '번역 준비 중...',
+          percentage: 0
+        });
+
+        const clientId = generateClientId();
+        let eventSource: EventSource | null = null;
+
+        try {
+          await new Promise<void>((resolve, reject) => {
+            eventSource = subscribeToProgress(
+              clientId,
+              (event) => {
+                const type = event.type;
+                if (type === 'progress') {
+                  const data = JSON.parse(event.data);
+                  translationStore.setFileProgress({
+                    message: data.message,
+                    percentage: data.percentage
+                  });
+                } else if (type === 'complete') {
+                  resolve();
+                } else if (type === 'error') {
+                  const data = JSON.parse(event.data);
+                  console.error("SSE Error:", data.message);
+                  reject(new Error(data.message));
+                }
+              },
+              (error) => {
+                console.log("SSE Connection closed or error", error);
+              }
+            );
+
+            translateTargetFile(fileName, clientId)
+              .then(() => {
+                // SSE complete 이벤트에서 resolve됨
+              })
+              .catch((err) => reject(err));
+          });
+
+        } catch (e) {
+          console.error(`Failed to translate ${fileName}`, e);
+          throw e;
+        } finally {
+          if (eventSource) {
+            closeEventSource(eventSource);
+          }
+          translationStore.setFileProgress(null);
+        }
       }
 
-      // 완료
       translationStore.setBatchProgress({
         total: fileNames.length,
         current: fileNames.length,
@@ -180,6 +228,7 @@ export function FileListPanel(): React.ReactElement {
       console.error(err);
     } finally {
       translationStore.setBatchProgress(null);
+      translationStore.setFileProgress(null);
     }
   };
 
@@ -190,14 +239,11 @@ export function FileListPanel(): React.ReactElement {
     }
 
     const fileNames = Array.from(selectedFiles);
-
-    // 번역된 파일만 필터링
     const translatedFiles = fileNames.filter(fileName => {
       const metadata = fileMetadata.find(f => f.fileName === fileName);
       return metadata?.translated === true;
     });
 
-    // 번역된 파일이 없는 경우
     if (translatedFiles.length === 0) {
       translationStore.setError('다운로드 할 수 있는 번역 파일이 없습니다.');
       return;
@@ -296,15 +342,35 @@ export function FileListPanel(): React.ReactElement {
 
       {batchProgress && (
         <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-6">
-          <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-            번역 중: {batchProgress.current}/{batchProgress.total} - {batchProgress.currentFile}
-          </p>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              전체 진행률 ({batchProgress.current}/{batchProgress.total})
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              현재 파일: {batchProgress.currentFile}
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-4">
             <div
-              className="bg-primary h-2 rounded-full transition-all duration-300"
+              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
               style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
             />
           </div>
+
+          {fileProgress && (
+            <div className="mt-2 pl-4 border-l-2 border-blue-300 dark:border-blue-600">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs text-gray-600 dark:text-gray-400">{fileProgress.message}</span>
+                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{fileProgress.percentage}%</span>
+              </div>
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                <div
+                  className="bg-green-500 h-1.5 rounded-full transition-all duration-300"
+                  style={{ width: `${fileProgress.percentage}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -343,10 +409,11 @@ export function FileListPanel(): React.ReactElement {
 
       <div className={`overflow-x-auto ${isDragOver ? 'drop-target' : ''}`}>
         <table
-               className="w-full text-sm text-left text-gray-600 dark:text-gray-400"
-               onDragOver={handleDragOver}
-               onDragLeave={handleDragLeave}
-               onDrop={handleDrop}>
+          className="w-full text-sm text-left text-gray-600 dark:text-gray-400"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <thead className="text-sm text-gray-600 dark:text-gray-300 bg-gray-200 dark:bg-gray-700">
             <tr>
               <th scope="col" className="p-4 w-4">
@@ -365,7 +432,13 @@ export function FileListPanel(): React.ReactElement {
             </tr>
           </thead>
           <tbody>
-            {uploading && <tr><td colSpan={6} className="px-6 py-3 font-medium text-left uploading-message">업로드 중...</td></tr>}
+            {uploading && (
+              <tr>
+                <td colSpan={6} className="px-6 py-3 font-medium text-left uploading-message">
+                  업로드 중...
+                </td>
+              </tr>
+            )}
 
             {fileMetadata.map((file, index) => (
               <tr

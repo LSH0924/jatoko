@@ -24,149 +24,119 @@ import java.util.Map;
 public class DirectoryController {
 
     private final DirectoryService directoryService;
+    private final com.jatoko.service.ProgressService progressService;
+
+    @GetMapping(value = "/progress/subscribe/{clientId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter subscribe(@PathVariable String clientId) {
+        return progressService.createEmitter(clientId);
+    }
 
     @GetMapping("/files/{type}")
     public ResponseEntity<List<String>> listFiles(@PathVariable String type) {
-        try {
-            List<String> files = directoryService.listFiles(type);
-            return ResponseEntity.ok(files);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        }
+        List<String> files = directoryService.listFiles(type);
+        return ResponseEntity.ok(files);
     }
 
     @PostMapping("/files/target")
-    public ResponseEntity<?> uploadToTarget(@RequestParam("file") MultipartFile file) {
-        try {
-            var result = directoryService.uploadToTarget(file);
-            return ResponseEntity.ok(Map.of(
-                    "fileName", result.fileName(),
-                    "outlined", result.outlined(),
-                    "message", "Upload successful"
-            ));
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Upload failed: " + e.getMessage()));
-        }
+    public ResponseEntity<?> uploadToTarget(@RequestParam("file") MultipartFile file) throws IOException {
+        var result = directoryService.uploadToTarget(file);
+        return ResponseEntity.ok(Map.of(
+                "fileName", result.fileName(),
+                "outlined", result.outlined(),
+                "message", "Upload successful"
+        ));
     }
 
     @GetMapping("/files/translated/{fileName}")
-    public ResponseEntity<Resource> downloadFromTranslated(@PathVariable String fileName) {
-        try {
-            Resource resource = directoryService.downloadFromTranslated(fileName);
-            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
-                    .replaceAll("\\+", "%20");
+    public ResponseEntity<Resource> downloadFromTranslated(@PathVariable String fileName) throws IOException {
+        Resource resource = directoryService.downloadFromTranslated(fileName);
+        String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                .replaceAll("\\+", "%20");
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename*=UTF-8''" + encodedFileName)
-                    .body(resource);
-        } catch (IOException e) {
-            return ResponseEntity.notFound().build();
-        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''" + encodedFileName)
+                .body(resource);
     }
 
     @PostMapping("/translate-file")
     public ResponseEntity<?> translateTargetFile(@RequestBody Map<String, String> request) {
+        String fileName = request.get("fileName");
+        String clientId = request.get("clientId"); // Optional client ID for SSE
+
+        if (fileName == null || fileName.isEmpty()) {
+            throw new IllegalArgumentException("fileName is required");
+        }
+        
+        // Exception is handled by GlobalExceptionHandler, but we might want to return 
+        // the result. The service will handle SSE updates internally.
+        // However, DirectoryService.translateFile throws Exception, so we need to catch/rethrow or let Global handle it.
+        // GlobalExceptionHandler handles general Exceptions.
+        
         try {
-            String fileName = request.get("fileName");
-            if (fileName == null || fileName.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("error", "fileName is required"));
-            }
-            String translatedFileName = directoryService.translateFile(fileName);
+            String translatedFileName = directoryService.translateFile(fileName, clientId);
             return ResponseEntity.ok(Map.of(
                     "sessionId", translatedFileName,
                     "message", "Translation successful"
             ));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Translation failed: " + e.getMessage()));
+            // If SSE is used, the service already sent an error event.
+            // But we still return an error response for the HTTP request.
+            throw new RuntimeException(e);
         }
     }
 
     @DeleteMapping("/files/{type}/{fileName}")
-    public ResponseEntity<?> deleteFile(@PathVariable String type, @PathVariable String fileName) {
-        try {
-            directoryService.deleteFile(type, fileName);
-            return ResponseEntity.ok(Map.of("message", "File deleted successfully"));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest()
-                    .body(Map.of("error", e.getMessage()));
-        } catch (IOException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<?> deleteFile(@PathVariable String type, @PathVariable String fileName) throws IOException {
+        directoryService.deleteFile(type, fileName);
+        return ResponseEntity.ok(Map.of("message", "File deleted successfully"));
     }
 
     @GetMapping("/files/metadata")
-    public ResponseEntity<?> getFileMetadata() {
-        try {
-            List<FileMetadataDto> metadata = directoryService.getFileMetadata();
-            return ResponseEntity.ok(metadata);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Failed to retrieve file metadata: " + e.getMessage()));
-        }
+    public ResponseEntity<?> getFileMetadata() throws IOException {
+        List<FileMetadataDto> metadata = directoryService.getFileMetadata();
+        return ResponseEntity.ok(metadata);
     }
 
     @PostMapping("/translate/batch")
     public ResponseEntity<?> translateBatch(@RequestBody BatchTranslationRequest request) {
-        try {
-            if (request.getFileNames() == null || request.getFileNames().isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("error", "fileNames is required"));
-            }
-
-            BatchTranslationResponse response = directoryService.translateFilesInBatch(request.getFileNames());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Batch translation failed: " + e.getMessage()));
+        if (request.getFileNames() == null || request.getFileNames().isEmpty()) {
+            throw new IllegalArgumentException("fileNames is required");
         }
+
+        BatchTranslationResponse response = directoryService.translateFilesInBatch(request.getFileNames());
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/files/batch-delete")
     public ResponseEntity<?> batchDelete(@RequestBody Map<String, List<String>> request) {
-        try {
-            List<String> fileNames = request.get("fileNames");
-            if (fileNames == null || fileNames.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(Map.of("error", "fileNames is required"));
-            }
-
-            directoryService.deleteFilesInBatch(fileNames);
-            return ResponseEntity.ok(Map.of("message", "Files deleted successfully"));
-        } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                    .body(Map.of("error", "Batch delete failed: " + e.getMessage()));
+        List<String> fileNames = request.get("fileNames");
+        if (fileNames == null || fileNames.isEmpty()) {
+            throw new IllegalArgumentException("fileNames is required");
         }
+
+        directoryService.deleteFilesInBatch(fileNames);
+        return ResponseEntity.ok(Map.of("message", "Files deleted successfully"));
     }
 
     @GetMapping("/download/translated/{targetFileName}")
-    public ResponseEntity<Resource> downloadLatestTranslated(@PathVariable String targetFileName) {
-        try {
-            Resource resource = directoryService.downloadLatestTranslatedFile(targetFileName);
+    public ResponseEntity<Resource> downloadLatestTranslated(@PathVariable String targetFileName) throws IOException {
+        Resource resource = directoryService.downloadLatestTranslatedFile(targetFileName);
 
-            // 실제 번역 파일명 추출
-            String actualFileName = resource.getFilename();
-            if (actualFileName == null) {
-                actualFileName = targetFileName;
-            }
-
-            String encodedFileName = URLEncoder.encode(actualFileName, StandardCharsets.UTF_8)
-                    .replaceAll("\\+", "%20");
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename*=UTF-8''" + encodedFileName)
-                    .body(resource);
-        } catch (IOException e) {
-            return ResponseEntity.notFound().build();
+        // 실제 번역 파일명 추출
+        String actualFileName = resource.getFilename();
+        if (actualFileName == null) {
+            actualFileName = targetFileName;
         }
+
+        String encodedFileName = URLEncoder.encode(actualFileName, StandardCharsets.UTF_8)
+                .replaceAll("\\+", "%20");
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename*=UTF-8''" + encodedFileName)
+                .body(resource);
     }
 }

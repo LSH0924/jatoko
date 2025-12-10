@@ -12,6 +12,10 @@ type TranslationStore = {
     current: number;
     currentFile: string;
   } | null;
+  fileProgress: {
+    message: string;
+    percentage: number;
+  } | null;
 };
 
 // create() returns only initial state (no actions)
@@ -21,6 +25,7 @@ const useStore = create<TranslationStore>(() => ({
   loading: false,
   error: '',
   batchProgress: null,
+  fileProgress: null,
 }));
 
 // Action object separated from state
@@ -64,6 +69,10 @@ const store = {
 
   setBatchProgress: (progress: { total: number; current: number; currentFile: string } | null) => {
     useStore.setState({ batchProgress: progress });
+  },
+
+  setFileProgress: (progress: { message: string; percentage: number } | null) => {
+    useStore.setState({ fileProgress: progress });
   },
 
   clearError: () => {

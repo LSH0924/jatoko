@@ -88,8 +88,31 @@ export const downloadFromTranslated = async (fileName: string): Promise<Blob> =>
 };
 
 // Target 파일 번역
-export const translateTargetFile = async (fileName: string): Promise<TranslationResponse> => {
-  return postData<TranslationResponse>('/translate-file', { fileName });
+export const translateTargetFile = async (fileName: string, clientId?: string): Promise<TranslationResponse> => {
+  return postData<TranslationResponse>('/translate-file', { fileName, clientId });
+};
+
+// SSE 구독
+export const subscribeToProgress = (clientId: string, onMessage: (event: MessageEvent) => void, onError: (event: Event) => void): EventSource => {
+  const eventSource = new EventSource(`${API_BASE_URL}/progress/subscribe/${clientId}`);
+  eventSource.addEventListener('progress', onMessage);
+  eventSource.addEventListener('complete', onMessage);
+  eventSource.addEventListener('error', onMessage); // Custom error event from server
+  eventSource.onerror = onError;
+  return eventSource;
+};
+
+// SSE 종료
+export const closeEventSource = (eventSource: EventSource): void => {
+  eventSource.close();
+};
+
+// UUID 생성 유틸리티 (간단한 버전)
+export const generateClientId = (): string => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 };
 
 // 파일 삭제 (target 또는 translated 디렉토리)
