@@ -13,6 +13,8 @@
 - 📦 **배치 작업**: 다중 파일 업로드, 일괄 번역, 일괄 삭제 지원
 - 🖥 **직관적인 UI**: React 기반의 드래그 앤 드롭 인터페이스 및 파일 상태(업로드됨, 번역됨) 시각화
 - 🔄 **버전 관리**: 동일 파일에 대한 여러 번의 번역 결과 관리
+- 📊 **실시간 진행률**: SSE(Server-Sent Events)를 통한 번역 진행 상황 실시간 표시
+- 🔍 **SVG 아웃라인 감지**: 텍스트가 아웃라인화된 SVG 파일 자동 감지 및 경고
 
 ## 🛠 기술 스택
 
@@ -24,11 +26,14 @@
 - **DeepL Java Library** (번역 API)
 
 ### Frontend
-- **React 19**
-- **TypeScript**
-- **Vite**
-- **Zustand** (상태 관리)
-- **Tailwind CSS** (스타일링)
+- **React 19.2.0** + **React DOM 19.2.0**
+- **TypeScript 5.8**
+- **Vite 6.3** (빌드 도구)
+- **Zustand 5.0** (상태 관리)
+- **Tailwind CSS 4.1** (스타일링)
+- **Axios** (HTTP 클라이언트)
+- **Day.js** (날짜/시간 포맷팅)
+- **SSE (Server-Sent Events)** (실시간 진행률 표시)
 
 ### Infrastructure
 - **Docker & Docker Compose**
@@ -103,33 +108,81 @@ npm run dev
 
 파일 관리를 위한 통합 컨트롤러(`DirectoryController`)를 사용합니다.
 
+### 주요 엔드포인트
+
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| `GET` | `/api/files/metadata` | 전체 파일 목록 및 상태(번역 여부 등) 조회 |
-| `POST` | `/api/files/target` | 파일 업로드 (Multipart) |
-| `POST` | `/api/translate-file` | 단일 파일 번역 요청 |
-| `POST` | `/api/translate/batch` | 다중 파일 일괄 번역 요청 |
-| `GET` | `/api/download/translated/{fileName}` | 최신 번역된 파일 다운로드 |
-| `DELETE` | `/api/files/{type}/{fileName}` | 파일 삭제 |
+| `GET` | `/api/files/metadata` | 전체 파일 목록 및 상태(번역 여부, 버전, 아웃라인 여부 등) 조회 |
+| `GET` | `/api/files/{type}` | 지정된 디렉토리(`target` 또는 `translated`)의 파일 목록 조회 |
+| `POST` | `/api/files/target` | 파일 업로드 (Multipart) - 아웃라인 여부도 함께 반환 |
+| `POST` | `/api/translate-file` | 단일 파일 번역 요청 (Body: `{"fileName": "...", "clientId": "..."}`) |
+| `POST` | `/api/translate/batch` | 다중 파일 일괄 번역 요청 (Body: `{"fileNames": ["...", "..."]}`) |
+| `GET` | `/api/download/translated/{targetFileName}` | target 파일명에 대응하는 최신 번역 파일 다운로드 |
+| `GET` | `/api/files/translated/{fileName}` | 특정 번역 파일 다운로드 |
+| `DELETE` | `/api/files/{type}/{fileName}` | 파일 삭제 (target 타입 삭제 시 번역 파일 및 메타데이터도 함께 삭제) |
+| `POST` | `/api/files/batch-delete` | 다중 파일 일괄 삭제 (Body: `{"fileNames": ["...", "..."]}`) |
+| `GET` | `/api/progress/subscribe/{clientId}` | SSE: 번역 진행률 실시간 구독 (EventSource 사용) |
 
 ## 📂 프로젝트 구조
 
 ```
 jatoko/
-├── backend/            # Spring Boot Application
+├── backend/                           # Spring Boot Application (Java 21)
 │   ├── src/main/java/com/jatoko/
-│   │   ├── controller/ # DirectoryController (API 진입점)
-│   │   ├── service/    # DirectoryService, AstahParserService, SvgParserService
-│   │   └── ...
-├── frontend/           # React Application
+│   │   ├── controller/                # REST API 컨트롤러
+│   │   │   └── DirectoryController    # 파일 관리 및 번역 API 진입점
+│   │   ├── service/                   # 비즈니스 로직
+│   │   │   ├── DirectoryService       # 파일 관리 통합 서비스
+│   │   │   ├── ProgressService        # SSE 진행률 관리
+│   │   │   ├── MetadataService        # 파일 메타데이터 관리
+│   │   │   ├── BaseParserService      # 공통 파싱 로직 (추상 클래스)
+│   │   │   ├── AstahParserService     # Astah 파일 파싱 및 번역
+│   │   │   ├── SvgParserService       # SVG 파일 파싱 및 번역
+│   │   │   ├── extractor/             # 텍스트 추출 로직
+│   │   │   │   ├── NodeExtractor      # Astah 모델 재귀 탐색 및 추출
+│   │   │   │   ├── DiagramExtractor   # 다이어그램별 추출 전략
+│   │   │   │   └── SvgTextExtractor   # SVG 텍스트 노드 추출
+│   │   │   ├── translator/            # 번역 엔진
+│   │   │   │   ├── Translator         # DeepL API 통합
+│   │   │   │   └── TranslationMapBuilder # 번역 매핑 최적화
+│   │   │   ├── applier/               # 번역 적용 로직
+│   │   │   │   ├── ModelTranslationApplier    # Astah 모델 요소 번역 적용
+│   │   │   │   ├── DiagramTranslationApplier  # Astah 다이어그램 번역 적용
+│   │   │   │   └── SvgTranslationApplier      # SVG DOM 번역 적용
+│   │   │   └── svg/                   # SVG 처리 유틸
+│   │   │       ├── SvgDocumentLoader  # SVG DOM 파싱 및 저장
+│   │   │       └── SvgStyleManager    # SVG 스타일 관리
+│   │   ├── dto/                       # 데이터 전송 객체
+│   │   ├── model/                     # 도메인 모델
+│   │   ├── config/                    # 설정 클래스
+│   │   ├── util/                      # 유틸리티 클래스
+│   │   │   ├── JapaneseDetector       # 일본어 텍스트 감지
+│   │   │   ├── KoreanDetector         # 한국어 텍스트 감지
+│   │   │   └── SvgOutlineDetector     # SVG 아웃라인 감지
+│   │   └── exception/                 # 예외 처리
+│   └── libs/                          # Astah SDK jar 파일
+│       ├── astah-api.jar
+│       ├── astah-professional.jar
+│       └── rlm-1601.jar
+├── frontend/                          # React Application
 │   ├── src/
-│   │   ├── components/ # FileListPanel 등 UI 컴포넌트
-│   │   ├── services/   # API 통신 로직
-│   │   └── stores/     # Zustand 상태 관리
-├── translated/         # 번역 결과물 저장소 (Docker 볼륨)
-├── uploads/            # 업로드 파일 저장소 (Docker 볼륨)
-├── docker-compose.yml
-└── Makefile
+│   │   ├── components/                # UI 컴포넌트
+│   │   │   ├── FileListPanel.tsx      # 파일 관리 메인 패널
+│   │   │   └── FileList/              # 파일 목록 하위 컴포넌트
+│   │   ├── stores/                    # Zustand 상태 관리
+│   │   │   └── translationStore.ts    # 번역 작업 상태 관리
+│   │   ├── services/                  # API 통신 및 비즈니스 로직
+│   │   │   └── api.ts                 # Axios 기반 API 클라이언트
+│   │   └── hooks/                     # 커스텀 React Hooks
+│   │       └── useFileManagement.ts   # 파일 관리 로직
+│   └── package.json
+├── target/                            # 업로드된 원본 파일 저장소
+├── translated/                        # 번역된 파일 저장소
+├── docker-compose.yml                 # Docker 컨테이너 오케스트레이션
+├── Makefile                           # 빌드 및 실행 명령어 단축키
+├── .env.example                       # 환경 변수 템플릿
+├── CLAUDE.md                          # AI 코딩 가이드
+└── LICENSE                            # AGPL-3.0 라이선스
 ```
 
 ## 📝 라이선스
