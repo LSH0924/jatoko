@@ -64,6 +64,16 @@
    # DEEPL_GLOSSARY_ID=optional_glossary_id
    ```
 
+   **용어집(Glossary) 활용 (선택 사항)**
+
+   프로젝트에 포함된 `glossary_for-iconnect.csv` 파일은 DeepL 용어집 형식의 일본어-한국어 번역 사전입니다. 업계 용어나 고유 표현의 번역 일관성을 높이고 싶다면, 이 파일을 본인의 DeepL 계정에 용어집으로 등록하여 사용할 수 있습니다.
+
+   1. [DeepL 계정](https://www.deepl.com/your-account/glossaries)에 로그인
+   2. 용어집 메뉴에서 CSV 파일 업로드
+   3. 생성된 Glossary ID를 `.env` 파일의 `DEEPL_GLOSSARY_ID`에 설정
+
+   용어집을 사용하면 특정 용어가 매번 동일하게 번역되어 어색한 번역을 줄일 수 있습니다.
+
 3. **Astah SDK 라이브러리 설정**
    Astah Professional이 설치되어 있다면 자동으로 SDK 라이브러리를 설정할 수 있습니다:
    ```bash
