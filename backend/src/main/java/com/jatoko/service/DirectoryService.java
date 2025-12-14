@@ -220,25 +220,52 @@ public class DirectoryService {
 
     /**
      * 지정된 디렉토리에서 파일 삭제
+     * target 타입인 경우 meta.json과 번역된 파일들도 함께 삭제
      */
     public void deleteFile(String type, String fileName) throws IOException {
         String path;
         if ("target".equalsIgnoreCase(type)) {
             path = directoryConfig.getTarget();
+
+            // 1. 원본 파일 삭제
+            Path filePath = Paths.get(path, fileName);
+            if (!Files.exists(filePath)) {
+                throw new IOException("File not found: " + fileName);
+            }
+            Files.delete(filePath);
+            log.info("File deleted from {}: {}", type, fileName);
+
+            // 2. meta.json 파일 삭제
+            Path metaFilePath = Paths.get(path, fileName + ".meta.json");
+            if (Files.exists(metaFilePath)) {
+                Files.delete(metaFilePath);
+                log.info("Meta file deleted: {}", metaFilePath);
+            }
+
+            // 3. 대응하는 번역 파일들 삭제
+            String baseName = fileName.replaceAll("\\.(asta|astah|svg)$", "");
+            File translatedDir = new File(directoryConfig.getTranslated());
+            if (translatedDir.exists() && translatedDir.isDirectory()) {
+                List<File> translatedFiles = findTranslatedFiles(translatedDir, baseName);
+                for (File translatedFile : translatedFiles) {
+                    Files.delete(translatedFile.toPath());
+                    log.info("Translated file deleted: {}", translatedFile.getName());
+                }
+            }
+
         } else if ("translated".equalsIgnoreCase(type)) {
             path = directoryConfig.getTranslated();
+
+            Path filePath = Paths.get(path, fileName);
+            if (!Files.exists(filePath)) {
+                throw new IOException("File not found: " + fileName);
+            }
+            Files.delete(filePath);
+            log.info("File deleted from {}: {}", type, fileName);
+
         } else {
             throw new IllegalArgumentException("Invalid directory type: " + type);
         }
-
-        Path filePath = Paths.get(path, fileName);
-
-        if (!Files.exists(filePath)) {
-            throw new IOException("File not found: " + fileName);
-        }
-
-        Files.delete(filePath);
-        log.info("File deleted from {}: {}", type, fileName);
     }
 
     /**

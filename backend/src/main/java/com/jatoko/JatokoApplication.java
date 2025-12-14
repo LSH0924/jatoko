@@ -4,10 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class JptokoApplication {
+public class JatokoApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(JptokoApplication.class, args);
+        SpringApplication.run(JatokoApplication.class, args);
     }
 
 }
