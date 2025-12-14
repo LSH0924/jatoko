@@ -65,7 +65,17 @@
    ```
 
 3. **Astah SDK 라이브러리 설정**
-   `backend/libs` 디렉토리에 다음 Astah Professional jar 파일들이 있어야 합니다. (없을 경우 빌드 실패 가능성 있음)
+   Astah Professional이 설치되어 있다면 자동으로 SDK 라이브러리를 설정할 수 있습니다:
+   ```bash
+   make setup-astah
+   ```
+
+   또는 특정 경로에서 가져오려면:
+   ```bash
+   make setup-astah ASTAH_PATH=/path/to/astah
+   ```
+
+   수동으로 설정하려면 `backend/libs` 디렉토리에 다음 파일들을 복사하세요:
    - `astah-api.jar`
    - `astah-professional.jar`
    - `rlm-1601.jar`
