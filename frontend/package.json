@@ -14,8 +14,8 @@
     "axios": "^1.13.2",
     "dayjs": "^1.11.19",
     "playwright": "^1.57.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
