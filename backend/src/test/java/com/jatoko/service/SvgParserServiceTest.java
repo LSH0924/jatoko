@@ -175,4 +175,56 @@ class SvgParserServiceTest {
         assertEquals("14", node.getFontSize());
         assertEquals("Arial", node.getFontFamily());
     }
+
+    @Test
+    void testForeignObjectIndividualElements() throws Exception {
+        // foreignObject 내부 개별 요소 추출 테스트
+        String svgContent = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
+                    <g>
+                        <foreignObject x="10" y="80" width="200" height="100">
+                            <div xmlns="http://www.w3.org/1999/xhtml">
+                                <h1>日本語タイトル</h1>
+                                <p>これはテストです</p>
+                                <p>翻訳されます</p>
+                            </div>
+                        </foreignObject>
+                    </g>
+                </svg>
+                """;
+
+        File svgFile = tempDir.resolve("individual_test.svg").toFile();
+        Files.writeString(svgFile.toPath(), svgContent);
+
+        // 추출
+        List<SvgTextNode> nodes = svgParserService.extractJapaneseTexts(svgFile);
+
+        // 3개의 개별 요소가 추출되어야 함 (h1, p, p)
+        assertEquals(3, nodes.size(), "foreignObject 내부의 3개 요소가 개별 추출되어야 합니다");
+
+        // 각 노드 검증
+        System.out.println("\n=== 개별 요소 추출 결과 ===");
+        for (SvgTextNode node : nodes) {
+            System.out.println("ID: " + node.getId());
+            System.out.println("텍스트: " + node.getOriginalText());
+            assertTrue(node.getId().startsWith("foreign_"), "id는 foreign_ 접두사를 가져야 합니다");
+            System.out.println();
+        }
+
+        // 텍스트 내용 확인
+        assertTrue(nodes.stream().anyMatch(n -> n.getOriginalText().equals("日本語タイトル")),
+                "h1 텍스트가 추출되어야 합니다");
+        assertTrue(nodes.stream().anyMatch(n -> n.getOriginalText().equals("これはテストです")),
+                "첫 번째 p 텍스트가 추출되어야 합니다");
+        assertTrue(nodes.stream().anyMatch(n -> n.getOriginalText().equals("翻訳されます")),
+                "두 번째 p 텍스트가 추출되어야 합니다");
+
+        // 2차 추출 시 해시가 동일한지 확인
+        List<SvgTextNode> nodes2 = svgParserService.extractJapaneseTexts(svgFile);
+        for (int i = 0; i < nodes.size(); i++) {
+            assertEquals(nodes.get(i).getId(), nodes2.get(i).getId(),
+                    "같은 요소는 같은 해시 id를 가져야 합니다");
+        }
+    }
 }

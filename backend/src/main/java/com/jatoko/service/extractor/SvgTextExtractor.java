@@ -27,6 +27,12 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -99,6 +105,7 @@ public class SvgTextExtractor {
 
     /**
      * <foreignObject> 요소에서 일본어 텍스트를 추출합니다.
+     * 내부의 각 텍스트 요소를 개별적으로 추출합니다.
      *
      * @param document SVG Document 객체
      * @return 일본어 텍스트 노드 리스트
@@ -109,28 +116,67 @@ public class SvgTextExtractor {
 
         for (int i = 0; i < foreignObjects.getLength(); i++) {
             Element foreignObject = (Element) foreignObjects.item(i);
-            String textContent = extractForeignObjectText(foreignObject);
-
-            // 일본어 포함 여부 확인
-            if (!textContent.trim().isEmpty() && JapaneseDetector.containsJapanese(textContent)) {
-                // foreignObject의 부모 g 요소에서 ID 가져오기 또는 생성
-                Element parentGroup = (Element) foreignObject.getParentNode();
-                String id = parentGroup.getAttribute("id");
-                if (id.isEmpty()) {
-                    id = "foreign_" + UUID.randomUUID();
-                    parentGroup.setAttribute("id", id);
-                }
-
-                SvgTextNode node = new SvgTextNode();
-                node.setId(id);
-                node.setOriginalText(textContent);
-
-                nodes.add(node);
-                log.debug("일본어 텍스트 발견 (foreignObject): id={}, text={}", id, textContent);
-            }
+            // foreignObject 내부의 각 텍스트 요소를 개별 추출
+            extractTextElementsRecursively(foreignObject, nodes);
         }
 
         return nodes;
+    }
+
+    /**
+     * foreignObject 내부를 재귀적으로 탐색하여 텍스트가 있는 요소를 개별 추출합니다.
+     *
+     * @param node 탐색할 노드
+     * @param nodes 추출된 노드를 저장할 리스트
+     */
+    private void extractTextElementsRecursively(Node node, List<SvgTextNode> nodes) {
+        NodeList children = node.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child.getNodeType() == Node.ELEMENT_NODE) {
+                Element element = (Element) child;
+                String directText = getDirectTextContent(element);
+
+                // 직접 텍스트가 있고 일본어를 포함하면 추출
+                if (!directText.isEmpty() && JapaneseDetector.containsJapanese(directText)) {
+                    String id = "foreign_" + hashElement(element);
+
+                    SvgTextNode svgNode = new SvgTextNode();
+                    svgNode.setId(id);
+                    svgNode.setOriginalText(directText);
+
+                    nodes.add(svgNode);
+                    log.debug("일본어 텍스트 발견 (foreignObject 내부): id={}, text={}", id, directText);
+                }
+
+                // 자식 요소도 재귀 탐색
+                extractTextElementsRecursively(element, nodes);
+            }
+        }
+    }
+
+    /**
+     * 요소의 직접 텍스트 노드 내용만 추출합니다 (자식 요소의 텍스트 제외).
+     *
+     * @param element 대상 요소
+     * @return 직접 텍스트 내용
+     */
+    private String getDirectTextContent(Element element) {
+        StringBuilder content = new StringBuilder();
+        NodeList children = element.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child.getNodeType() == Node.TEXT_NODE) {
+                String text = child.getTextContent();
+                if (text != null && !text.trim().isEmpty()) {
+                    if (content.length() > 0) {
+                        content.append(" ");
+                    }
+                    content.append(text.trim());
+                }
+            }
+        }
+        return content.toString();
     }
 
     /**
@@ -160,21 +206,69 @@ public class SvgTextExtractor {
 
     /**
      * <foreignObject> 내부에서 텍스트를 추출합니다.
-     * HTML div/span 구조에서 text-edit 클래스의 span을 찾습니다.
+     * 모든 자식 노드를 재귀적으로 탐색하여 텍스트를 수집합니다.
+     * (h1, p, div, span, textarea 등 모든 HTML 요소 지원)
      *
      * @param foreignObject <foreignObject> 요소
      * @return 추출된 텍스트 내용
      */
     public String extractForeignObjectText(Element foreignObject) {
-        // foreignObject → div → div → div → span.text-edit 구조 탐색
-        NodeList children = foreignObject.getElementsByTagName("span");
+        StringBuilder content = new StringBuilder();
+        extractTextRecursively(foreignObject, content);
+        return content.toString().trim();
+    }
+
+    /**
+     * 노드의 모든 자식을 재귀적으로 탐색하여 텍스트를 추출합니다.
+     *
+     * @param node 탐색할 노드
+     * @param content 텍스트를 수집할 StringBuilder
+     */
+    private void extractTextRecursively(Node node, StringBuilder content) {
+        NodeList children = node.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
-            Element span = (Element) children.item(i);
-            String className = span.getAttribute("class");
-            if (className.contains("text-edit")) {
-                return span.getTextContent().trim();
+            Node child = children.item(i);
+            if (child.getNodeType() == Node.TEXT_NODE) {
+                String text = child.getTextContent();
+                if (text != null && !text.trim().isEmpty()) {
+                    if (content.length() > 0) {
+                        content.append(" ");
+                    }
+                    content.append(text.trim());
+                }
+            } else if (child.getNodeType() == Node.ELEMENT_NODE) {
+                extractTextRecursively(child, content);
             }
         }
-        return "";
+    }
+
+    /**
+     * 요소의 outerHTML을 SHA-256으로 해시하여 앞 10자리를 반환합니다.
+     *
+     * @param element 해시할 요소
+     * @return 해시값 앞 10자리
+     */
+    public String hashElement(Element element) {
+        try {
+            StringWriter writer = new StringWriter();
+            TransformerFactory.newInstance()
+                    .newTransformer()
+                    .transform(new DOMSource(element), new StreamResult(writer));
+            String outerHtml = writer.toString();
+
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(outerHtml.getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.substring(0, 10);
+        } catch (Exception e) {
+            log.warn("요소 해시 생성 실패, UUID 사용: {}", e.getMessage());
+            return UUID.randomUUID().toString().substring(0, 10);
+        }
     }
 }

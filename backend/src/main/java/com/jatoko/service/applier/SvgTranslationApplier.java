@@ -95,6 +95,7 @@ public class SvgTranslationApplier {
 
     /**
      * <foreignObject> 요소에 번역을 적용합니다.
+     * 내부의 각 텍스트 요소에 개별적으로 번역을 적용합니다.
      *
      * @param document SVG Document 객체
      * @param translations 번역 맵
@@ -106,18 +107,93 @@ public class SvgTranslationApplier {
 
         for (int i = 0; i < foreignObjects.getLength(); i++) {
             Element foreignObject = (Element) foreignObjects.item(i);
-            Element parentGroup = (Element) foreignObject.getParentNode();
-            String id = parentGroup.getAttribute("id");
+            // foreignObject 내부의 각 텍스트 요소에 번역 적용
+            count += applyToTextElementsRecursively(foreignObject, translations);
+        }
 
-            if (translations.containsKey(id)) {
-                String translatedText = translations.get(id);
-                applyToForeignObjectText(foreignObject, translatedText);
-                count++;
-                log.debug("번역 적용 (foreignObject): id={}, text={}", id, translatedText);
+        return count;
+    }
+
+    /**
+     * foreignObject 내부를 재귀적으로 탐색하여 각 텍스트 요소에 번역을 적용합니다.
+     *
+     * @param node 탐색할 노드
+     * @param translations 번역 맵
+     * @return 적용된 번역 개수
+     */
+    private int applyToTextElementsRecursively(Node node, Map<String, String> translations) {
+        int count = 0;
+        NodeList children = node.getChildNodes();
+
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child.getNodeType() == Node.ELEMENT_NODE) {
+                Element element = (Element) child;
+                // 요소의 해시로 id 생성 (추출 시와 동일한 방식)
+                String id = "foreign_" + textExtractor.hashElement(element);
+
+                if (translations.containsKey(id)) {
+                    String translatedText = translations.get(id);
+                    applyOverlayToElement(element, translatedText);
+                    count++;
+                    log.debug("번역 적용 (foreignObject 내부): id={}, text={}", id, translatedText);
+                }
+
+                // 자식 요소도 재귀 탐색
+                count += applyToTextElementsRecursively(element, translations);
             }
         }
 
         return count;
+    }
+
+    /**
+     * 특정 텍스트 요소에 오버레이를 적용합니다.
+     *
+     * @param element 대상 요소
+     * @param translatedText 번역된 텍스트
+     */
+    private void applyOverlayToElement(Element element, String translatedText) {
+        Document document = element.getOwnerDocument();
+        String className = element.getAttribute("class");
+
+        // jp-translated 클래스 추가
+        if (className.isEmpty()) {
+            element.setAttribute("class", "jp-translated");
+        } else {
+            element.setAttribute("class", className + " jp-translated");
+        }
+
+        // 부모의 부모 div에서 white-space: pre-wrap 제거
+        removeWhiteSpacePreWrap(element);
+
+        // 원본 텍스트의 font-size 추출
+        String fontSize = extractFontSize(element);
+
+        // 번역 오버레이 span 생성 (CSS로 숨김/표시)
+        Element overlaySpan = document.createElement("span");
+        overlaySpan.setAttribute("class", "jp-overlay");
+
+        // 원본보다 작은 font-size 적용
+        if (!fontSize.isEmpty()) {
+            String smallerFontSize = reduceFontSize(fontSize);
+            String style = overlaySpan.getAttribute("style");
+            overlaySpan.setAttribute("style", style + "font-size: " + smallerFontSize + ";");
+        }
+
+        overlaySpan.setTextContent(translatedText);
+
+        // jp-wrapper 생성 (블록 요소는 div로 감싸기.) TODO 스타일 보존 미비함
+        Element wrapper = document.createElement("div");
+        wrapper.setAttribute("class", "jp-wrapper");
+
+        // 원문 요소를 wrapper로 감싸기
+        Node parentNode = element.getParentNode();
+        parentNode.replaceChild(wrapper, element);
+        wrapper.appendChild(element);
+        wrapper.appendChild(overlaySpan);
+
+        log.debug("요소에 오버레이 적용: translation={}, fontSize={}", translatedText, fontSize);
     }
 
     /**
@@ -155,60 +231,6 @@ public class SvgTranslationApplier {
         parent.replaceChild(groupElement, textElement);
 
         log.debug("텍스트 요소를 오버레이 구조로 변환: original={}, translation={}", originalText, translatedText);
-    }
-
-    /**
-     * <foreignObject> 내부에 CSS 기반 오버레이를 추가합니다.
-     * 원문 span을 jp-wrapper로 감싸고, 번역을 형제로 배치합니다.
-     * 호버 영역은 원문 span 크기로 제한됩니다.
-     */
-    private void applyToForeignObjectText(Element foreignObject, String translatedText) {
-        // foreignObject → div → div → div → span.text-edit 구조 탐색
-        NodeList children = foreignObject.getElementsByTagName("span");
-        for (int i = 0; i < children.getLength(); i++) {
-            Element span = (Element) children.item(i);
-            String className = span.getAttribute("class");
-            if (className.contains("text-edit")) {
-                Document document = span.getOwnerDocument();
-                String originalText = span.getTextContent();
-
-                // 기존 text-edit span에 jp-translated 클래스 추가
-                span.setAttribute("class", className + " jp-translated");
-
-                // span의 부모의 부모 div에서 white-space: pre-wrap 제거
-                removeWhiteSpacePreWrap(span);
-
-                // 원본 텍스트의 font-size 추출
-                String fontSize = extractFontSize(span);
-
-                // 번역 오버레이 span 생성 (CSS로 숨김/표시)
-                Element overlaySpan = document.createElement("span");
-                overlaySpan.setAttribute("class", "jp-overlay");
-
-                // 원본보다 작은 font-size 적용. 10이상은 1, 15이상은 2 작아짐.
-                if (!fontSize.isEmpty()) {
-                    String smallerFontSize = reduceFontSize(fontSize);
-                    String style = overlaySpan.getAttribute("style");
-                    overlaySpan.setAttribute("style", style + "font-size: " + smallerFontSize + ";");
-                }
-
-                overlaySpan.setTextContent(translatedText);
-
-                // jp-wrapper span 생성 (원문 span 크기로 hover 영역 제한)
-                Element wrapperSpan = document.createElement("span");
-                wrapperSpan.setAttribute("class", "jp-wrapper");
-
-                // 원문 span을 wrapper로 감싸기
-                Node parentNode = span.getParentNode();
-                parentNode.replaceChild(wrapperSpan, span);
-                wrapperSpan.appendChild(span);
-                wrapperSpan.appendChild(overlaySpan);
-
-                log.debug("foreignObject에 CSS 오버레이 추가: original={}, translation={}, fontSize={}",
-                          originalText, translatedText, fontSize);
-                break; // 첫 번째 text-edit span만 수정
-            }
-        }
     }
 
     /**
