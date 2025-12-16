@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="frontend/public/logo.svg" width="400">
+</div>
+
 # JaToKo (Japanese-to-Korean Translator)
 
 **JaToKo**는 Astah 다이어그램 파일(.asta) 및 SVG 파일에 포함된 일본어 텍스트를 자동으로 추출하여 한국어로 번역해주는 웹 애플리케이션입니다.
@@ -95,6 +99,16 @@
    - `astah-api.jar`
    - `astah-professional.jar`
    - `rlm-1601.jar`
+   
+<details>
+<summary>🔑 DeepL API 키 발급받는 방법 (클릭)</summary>
+
+1. [DeepL API 가입 페이지](https://www.deepl.com/pro-api) 접속
+2. **DeepL API Free** 요금제 선택 (월 50만 자 무료)
+3. 회원가입 및 카드 등록 (Free는 실제 결제되지 않음)
+4. 계정 관리 페이지에서 **'API Key'** 복사
+
+</details>
 
 ### 3. 실행 (Docker Compose)
 
