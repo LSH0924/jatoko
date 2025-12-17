@@ -10,6 +10,9 @@ function App(): React.ReactElement {
             <p className="text-gray-600 dark:text-gray-400 mt-2 text-lg">
             Astah (.asta) 및 SVG (.svg) 파일 지원
             </p>
+            <p className="text-gray-600 dark:text-gray-400 mt-2 text-base">
+                같은 파일을 여러 번 업로드 시 기존 버전에서 변경점만 찾아 새로 번역합니다.
+            </p>
         </header>
 
         <main className="max-w-6xl mx-auto">

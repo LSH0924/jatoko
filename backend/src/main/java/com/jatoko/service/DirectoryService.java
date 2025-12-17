@@ -30,7 +30,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.core.io.Resource;
@@ -39,10 +41,10 @@ import org.springframework.web.multipart.MultipartFile;
 import com.jatoko.dto.FileMetadataDto;
 import com.jatoko.dto.BatchTranslationResponse;
 
-import java.nio.file.attribute.BasicFileAttributes;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Comparator;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import com.jatoko.util.SvgOutlineDetector;
 
@@ -318,7 +320,7 @@ public class DirectoryService {
             }
 
             // 업로드 날짜 (target 파일의 최종 수정 날짜)
-            LocalDateTime uploadedAt = getFileLastModified(targetFile.toPath());
+            LocalDateTime uploadedAt = getFileLastModified(targetFile);
 
             // 번역 여부 및 번역 날짜 확인
             boolean translated = false;
@@ -329,16 +331,14 @@ public class DirectoryService {
 
             if (translatedDir.exists() && translatedDir.isDirectory()) {
                 // 번역된 파일 찾기 (fileName_translated.ext 또는 fileName_translated_N.ext)
-                String baseName = fileName.replaceAll("\\.(asta|astah|svg)$", "");
-                List<File> translatedFiles = findTranslatedFiles(translatedDir, baseName);
-
+                List<File> translatedFiles = findTranslatedFiles(translatedDir, fileName);
                 if (!translatedFiles.isEmpty()) {
                     translated = true;
                     version = translatedFiles.size();
                     // 가장 최신 번역 파일의 날짜
                     translatedAt = translatedFiles.stream()
-                            .map(f -> getFileLastModified(f.toPath()))
-                            .max(Comparator.naturalOrder())
+                            .map(this::getFileLastModified)
+                            .max(LocalDateTime::compareTo)
                             .orElse(null);
                 }
             }
@@ -349,6 +349,11 @@ public class DirectoryService {
                 outlined = SvgOutlineDetector.isOutlined(targetFile);
             }
 
+            // 원본 버전 (동일 baseName 원본 파일 개수)
+            String baseName = fileName.substring(0, fileName.lastIndexOf('.'));
+            List<File> originalFiles = findUploadedFiles(targetDir, baseName);
+            Integer originalVersion = !originalFiles.isEmpty() ? originalFiles.size() : null;
+
             FileMetadataDto metadata = FileMetadataDto.builder()
                     .fileName(fileName)
                     .translated(translated)
@@ -356,6 +361,7 @@ public class DirectoryService {
                     .translatedAt(translatedAt)
                     .outlined(outlined)
                     .version(version)
+                    .originalVersion(originalVersion)
                     .build();
 
             metadataList.add(metadata);
@@ -367,34 +373,45 @@ public class DirectoryService {
     /**
      * 파일의 최종 수정 날짜를 LocalDateTime으로 반환
      */
-    private LocalDateTime getFileLastModified(Path filePath) {
-        try {
-            BasicFileAttributes attrs = Files.readAttributes(filePath, BasicFileAttributes.class);
-            return LocalDateTime.ofInstant(attrs.lastModifiedTime().toInstant(), ZoneId.systemDefault());
-        } catch (IOException e) {
-            log.warn("Failed to read file attributes: {}", filePath, e);
-            return null;
-        }
+    private LocalDateTime getFileLastModified(File file) {
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(file.lastModified()), ZoneId.of("Asia/Seoul"));
     }
 
     /**
-     * baseName에 해당하는 번역된 파일들을 찾음
-     * 예: file → file_translated.asta, file_translated_1.asta, file_translated_2.asta
+     * baseName에 해당하는 파일들을 찾음 (버전 카운트용)
+     * 예: file → file.asta, file_1.asta, file_2.asta
      */
-    private List<File> findTranslatedFiles(File translatedDir, String baseName) {
-        File[] files = translatedDir.listFiles();
+    private List<File> findUploadedFiles(File dir, String fileName) {
+        File[] files = dir.listFiles();
         if (files == null) {
             return new ArrayList<>();
         }
 
-        String pattern = baseName + "_translated";
+        int separatorIndex = fileName.lastIndexOf(".");
+        String baseName = fileName.substring(0, separatorIndex);
+        String extension = fileName.substring(separatorIndex);
+        Pattern pattern = Pattern.compile("^"+Pattern.quote(baseName)+"(_\\d+)?\\."+extension+"+$");
+        return Arrays.stream(files)
+                .filter(f -> pattern.matcher(f.getName()).matches())
+                .collect(Collectors.toList());
+    }
 
-        return java.util.Arrays.stream(files)
-                .filter(f -> {
-                    String name = f.getName();
-                    String nameWithoutExt = name.replaceAll("\\.(asta|astah|svg)$", "");
-                    return nameWithoutExt.equals(pattern) || nameWithoutExt.startsWith(pattern + "_");
-                })
+    /**
+     * baseName에 해당하는 파일들을 찾음 (버전 카운트용)
+     * 예: file → file.asta, file_1.asta, file_2.asta
+     */
+    private List<File> findTranslatedFiles(File dir, String fileName) {
+        File[] files = dir.listFiles();
+        if (files == null) {
+            return new ArrayList<>();
+        }
+
+        int separatorIndex = fileName.lastIndexOf(".");
+        String baseName = fileName.substring(0, separatorIndex);
+        String extension = fileName.substring(separatorIndex);
+        Pattern pattern = Pattern.compile("^"+Pattern.quote(baseName)+"(_translated_\\d+)?\\."+extension+"+$");
+        return Arrays.stream(files)
+                .filter(f -> pattern.matcher(f.getName()).matches())
                 .collect(Collectors.toList());
     }
 

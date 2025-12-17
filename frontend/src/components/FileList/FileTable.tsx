@@ -59,7 +59,8 @@ export function FileTable({
               </th>
               <th scope="col" className="px-6 py-3 font-medium text-left">파일명</th>
               <th scope="col" className="px-6 py-3 font-medium text-left">번역됨</th>
-              <th scope="col" className="px-6 py-3 font-medium text-left">버전</th>
+              <th scope="col" className="px-6 py-3 font-medium text-left">원본 버전</th>
+              <th scope="col" className="px-6 py-3 font-medium text-left">번역파일 버전</th>
               <th scope="col" className="px-6 py-3 font-medium text-left">업로드 날짜</th>
               <th scope="col" className="px-6 py-3 font-medium text-left">번역된 날짜</th>
             </tr>
@@ -67,7 +68,7 @@ export function FileTable({
           <tbody>
             {uploading && (
               <tr>
-                <td colSpan={6} className="px-6 py-3 font-medium text-left uploading-message">
+                <td colSpan={7} className="px-6 py-3 font-medium text-left uploading-message">
                   업로드 중...
                 </td>
               </tr>
@@ -103,6 +104,9 @@ export function FileTable({
                   ) : (
                     <span className="text-gray-400">-</span>
                   )}
+                </td>
+                <td className="px-6 py-4">
+                  {file.originalVersion !== null ? file.originalVersion : '-'}
                 </td>
                 <td className="px-6 py-4">
                   {file.version !== null ? file.version : '-'}

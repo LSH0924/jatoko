@@ -87,8 +87,23 @@ public class SvgStyleManager {
 
         styleElement.setTextContent(cssContent);
         defsElement.appendChild(styleElement);
+
+        // 클립보드 복사 JavaScript 추가
+        Element scriptElement = document.createElement("script");
+        scriptElement.setAttribute("type", "text/javascript");
+        String jsContent =
+            "function copyOriginalText(event) {\n" +
+            "  var originalText = event.currentTarget.getAttribute('data-original');\n" +
+            "  if (originalText && navigator.clipboard) {\n" +
+            "    navigator.clipboard.writeText(originalText);\n" +
+            "    alert('원문 일본어가 복사되었습니다.');\n" +
+            "  }\n" +
+            "}";
+        scriptElement.setTextContent(jsContent);
+        defsElement.appendChild(scriptElement);
+
         svgRoot.insertBefore(defsElement, svgRoot.getFirstChild());
 
-        log.debug("CSS 오버레이 스타일 추가 완료 (SVG text + foreignObject)");
+        log.debug("CSS 오버레이 스타일 및 클릭 핸들러 추가 완료 (SVG text + foreignObject)");
     }
 }

@@ -183,9 +183,12 @@ public class SvgTranslationApplier {
 
         overlaySpan.setTextContent(translatedText);
 
-        // jp-wrapper 생성 (블록 요소는 div로 감싸기.) TODO 스타일 보존 미비함
+        // jp-wrapper 생성 (블록 요소는 div로 감싸기, 클릭 시 원문 클립보드 복사)
         Element wrapper = document.createElement("div");
         wrapper.setAttribute("class", "jp-wrapper");
+        String originalText = element.getTextContent();
+        wrapper.setAttribute("data-original", originalText);
+        wrapper.setAttribute("onclick", "copyOriginalText(event)");
 
         // 원문 요소를 wrapper로 감싸기
         Node parentNode = element.getParentNode();
@@ -213,9 +216,11 @@ public class SvgTranslationApplier {
         // 속성 추출
         TextElementAttributes attrs = extractTextAttributes(textElement);
 
-        // <g class="jp-text-wrapper"> 생성
+        // <g class="jp-text-wrapper"> 생성 (클릭 시 원문 클립보드 복사)
         Element groupElement = document.createElement("g");
         groupElement.setAttribute("class", "jp-text-wrapper");
+        groupElement.setAttribute("data-original", originalText);
+        groupElement.setAttribute("onclick", "copyOriginalText(event)");
 
         // 원문 <text> (호버 시 투명해짐)
         Element originalTextElement = createTextElement(document, "original-text", attrs, originalText);

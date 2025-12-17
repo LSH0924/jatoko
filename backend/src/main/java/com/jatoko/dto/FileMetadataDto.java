@@ -32,4 +32,5 @@ public class FileMetadataDto {
     private LocalDateTime translatedAt;
     private boolean outlined;  // SVG 아웃라인 여부 (텍스트 추출 불가)
     private Integer version;   // 번역 버전 (번역 파일 개수, null이면 번역 없음)
+    private Integer originalVersion;  // 원본 버전 (동일 baseName 원본 파일 개수)
 }
