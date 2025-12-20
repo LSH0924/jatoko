@@ -119,18 +119,26 @@ public class DirectoryService {
 
     public UploadResult uploadToTarget(MultipartFile file) throws IOException {
         String targetPath = directoryConfig.getTarget();
-        String fileName = file.getOriginalFilename();
-        Path destination = Paths.get(targetPath, fileName);
-        Files.copy(file.getInputStream(), destination, StandardCopyOption.REPLACE_EXISTING);
+        String originalFileName = file.getOriginalFilename();
+
+        // 파일명에서 baseName과 extension 분리
+        int dotIndex = originalFileName != null ? originalFileName.lastIndexOf('.') : -1;
+        String baseName = dotIndex > 0 ? originalFileName.substring(0, dotIndex) : originalFileName;
+        String extension = dotIndex > 0 ? originalFileName.substring(dotIndex) : "";
+
+        // 중복 파일명 처리
+        String uniqueFileName = getUniqueFileName(targetPath, baseName, extension);
+        Path destination = Paths.get(targetPath, uniqueFileName);
+        Files.copy(file.getInputStream(), destination);
         log.info("File uploaded to target: {}", destination);
 
         // SVG 파일인 경우 아웃라인 여부 확인
         boolean outlined = false;
-        if (fileName != null && fileName.toLowerCase().endsWith(".svg")) {
+        if (uniqueFileName.toLowerCase().endsWith(".svg")) {
             outlined = SvgOutlineDetector.isOutlined(destination.toFile());
         }
 
-        return new UploadResult(fileName, outlined);
+        return new UploadResult(uniqueFileName, outlined);
     }
 
     public Resource downloadFromTranslated(String fileName) throws IOException {
@@ -152,11 +160,11 @@ public class DirectoryService {
 
     /**
      * 파일명 중복을 방지하여 고유한 파일명 생성
-     * 예: file_translated.asta가 존재하면 file_translated_1.asta, file_translated_2.asta ...
+     * 예: file.asta가 존재하면 file_1.asta, file_2.asta ...
      */
-    private String getUniqueFileName(String baseName, String extension) {
+    private String getUniqueFileName(String directory, String baseName, String extension) {
         String outputFileName = baseName + extension;
-        Path outputPath = Paths.get(directoryConfig.getTranslated(), outputFileName);
+        Path outputPath = Paths.get(directory, outputFileName);
 
         if (!Files.exists(outputPath)) {
             return outputFileName;
@@ -166,7 +174,7 @@ public class DirectoryService {
         int counter = 1;
         while (true) {
             outputFileName = baseName + "_" + counter + extension;
-            outputPath = Paths.get(directoryConfig.getTranslated(), outputFileName);
+            outputPath = Paths.get(directory, outputFileName);
 
             if (!Files.exists(outputPath)) {
                 return outputFileName;
@@ -207,7 +215,7 @@ public class DirectoryService {
             if (lowerFileName.endsWith(".asta") || lowerFileName.endsWith(".astah")) {
                 // Astah 파일 번역
                 String baseName = fileName.replaceAll("\\.(asta|astah)$", "");
-                outputFileName = getUniqueFileName(baseName + "_translated", ".asta");
+                outputFileName = getUniqueFileName(directoryConfig.getTranslated(), baseName + "_translated", ".asta");
                 outputPath = Paths.get(directoryConfig.getTranslated(), outputFileName);
 
                 astahParserService.extractTranslateAndApply(inputFile, outputPath.toFile(), callback);
@@ -215,7 +223,7 @@ public class DirectoryService {
             } else if (lowerFileName.endsWith(".svg")) {
                 // SVG 파일 번역
                 String baseName = fileName.replaceAll("\\.svg$", "");
-                outputFileName = getUniqueFileName(baseName + "_translated", ".svg");
+                outputFileName = getUniqueFileName(directoryConfig.getTranslated(), baseName + "_translated", ".svg");
                 outputPath = Paths.get(directoryConfig.getTranslated(), outputFileName);
 
                 svgParserService.extractTranslateAndApply(inputFile, outputPath.toFile(), callback);
@@ -263,10 +271,9 @@ public class DirectoryService {
             }
 
             // 3. 대응하는 번역 파일들 삭제
-            String baseName = fileName.replaceAll("\\.(asta|astah|svg)$", "");
             File translatedDir = new File(directoryConfig.getTranslated());
             if (translatedDir.exists() && translatedDir.isDirectory()) {
-                List<File> translatedFiles = findTranslatedFiles(translatedDir, baseName);
+                List<File> translatedFiles = findTranslatedFiles(translatedDir, fileName);
                 for (File translatedFile : translatedFiles) {
                     Files.delete(translatedFile.toPath());
                     log.info("Translated file deleted: {}", translatedFile.getName());
@@ -350,8 +357,7 @@ public class DirectoryService {
             }
 
             // 원본 버전 (동일 baseName 원본 파일 개수)
-            String baseName = fileName.substring(0, fileName.lastIndexOf('.'));
-            List<File> originalFiles = findUploadedFiles(targetDir, baseName);
+            List<File> originalFiles = findUploadedFiles(targetDir, fileName);
             Integer originalVersion = !originalFiles.isEmpty() ? originalFiles.size() : null;
 
             FileMetadataDto metadata = FileMetadataDto.builder()
@@ -390,7 +396,7 @@ public class DirectoryService {
         int separatorIndex = fileName.lastIndexOf(".");
         String baseName = fileName.substring(0, separatorIndex);
         String extension = fileName.substring(separatorIndex);
-        Pattern pattern = Pattern.compile("^"+Pattern.quote(baseName)+"(_\\d+)?\\."+extension+"+$");
+        Pattern pattern = Pattern.compile("^"+Pattern.quote(baseName)+"(_\\d+)?"+Pattern.quote(extension)+"$");
         return Arrays.stream(files)
                 .filter(f -> pattern.matcher(f.getName()).matches())
                 .collect(Collectors.toList());
@@ -409,7 +415,7 @@ public class DirectoryService {
         int separatorIndex = fileName.lastIndexOf(".");
         String baseName = fileName.substring(0, separatorIndex);
         String extension = fileName.substring(separatorIndex);
-        Pattern pattern = Pattern.compile("^"+Pattern.quote(baseName)+"(_translated_\\d+)?\\."+extension+"+$");
+        Pattern pattern = Pattern.compile("^"+Pattern.quote(baseName)+"(_translated)(_\\d+)?"+Pattern.quote(extension)+"$");
         return Arrays.stream(files)
                 .filter(f -> pattern.matcher(f.getName()).matches())
                 .collect(Collectors.toList());
@@ -468,9 +474,7 @@ public class DirectoryService {
         }
 
         // 번역된 파일 찾기
-        String baseName = targetFileName.replaceAll("\\.(asta|astah|svg)$", "");
-        List<File> translatedFiles = findTranslatedFiles(translatedDir, baseName);
-
+        List<File> translatedFiles = findTranslatedFiles(translatedDir, targetFileName);
         if (translatedFiles.isEmpty()) {
             throw new IOException("No translated file found for: " + targetFileName);
         }
