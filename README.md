@@ -36,7 +36,7 @@
 - **DeepL Java Library** (번역 API)
 
 ### Frontend
-- **React 19.2.0** + **React DOM 19.2.0**
+- **React 19.2.3** + **React DOM 19.2.3**
 - **TypeScript 5.8**
 - **Vite 6.3** (빌드 도구)
 - **Zustand 5.0** (상태 관리)
