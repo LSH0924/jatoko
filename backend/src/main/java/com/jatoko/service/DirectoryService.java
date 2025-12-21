@@ -196,8 +196,21 @@ public class DirectoryService {
     }
 
     public String translateFile(String fileName, String clientId) throws Exception {
-        Path targetPath = Paths.get(directoryConfig.getTarget(), fileName);
+        String targetDirPath = directoryConfig.getTarget();
+        File targetDir = new File(targetDirPath);
 
+        // 업로드된 파일 찾기
+        List<File> targetFiles = findUploadedFiles(targetDir, fileName);
+        if (targetFiles.isEmpty()) {
+            throw new IOException("File not found: " + fileName);
+        }
+
+        // 가장 최신 파일 선택
+        File latestFile = targetFiles.stream()
+                .max(Comparator.comparing(File::lastModified))
+                .orElseThrow(() -> new IOException("Failed to find latest translated file"));
+
+        Path targetPath = latestFile.toPath();
         if (!Files.exists(targetPath)) {
             String error = "File not found: " + fileName;
             if (clientId != null) progressService.sendError(clientId, error);
