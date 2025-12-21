@@ -101,11 +101,16 @@ public class DirectoryService {
         }
 
         for (File file : files) {
-            boolean isShowable =!file.getName().startsWith(".");
-            String lowerName = file.getName().toLowerCase();
-            boolean hasTargetExtension =lowerName.endsWith(".asta") || lowerName.endsWith(".svg");
-            if (file.isFile() && isShowable && hasTargetExtension) {
-                fileList.add(file.getName());
+            String fileName = file.getName();
+            boolean isShowable = !fileName.startsWith(".");
+            String lowerName = fileName.toLowerCase();
+            boolean hasTargetExtension = lowerName.endsWith(".asta") || lowerName.endsWith(".svg");
+
+            // target 디렉토리에서 _N 패턴 파일 제외
+            boolean isVersioned = "target".equalsIgnoreCase(type) && isVersionedFile(fileName);
+
+            if (file.isFile() && isShowable && hasTargetExtension && !isVersioned) {
+                fileList.add(fileName);
             }
         }
 
@@ -322,7 +327,8 @@ public class DirectoryService {
             String lowerName = fileName.toLowerCase();
             boolean hasTargetExtension = lowerName.endsWith(".asta") || lowerName.endsWith(".svg");
 
-            if (!targetFile.isFile() || !isShowable || !hasTargetExtension) {
+            // _N 패턴 파일 제외
+            if (!targetFile.isFile() || !isShowable || !hasTargetExtension || isVersionedFile(fileName)) {
                 continue;
             }
 
@@ -383,6 +389,26 @@ public class DirectoryService {
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(file.lastModified()), ZoneId.of("Asia/Seoul"));
     }
 
+    private Pattern getVersionedTargetFilePattern(String baseName, String extension) {
+        return Pattern.compile("^"+Pattern.quote(baseName)+"(_\\d+)?"+Pattern.quote(extension)+"$");
+    }
+
+    /**
+     * 파일명이 _N 패턴(버전 파일)인지 확인
+     * 예: file_1.asta, file_2.svg → true
+     *     file.asta, file_translated.svg → false
+     */
+    private boolean isVersionedFile(String fileName) {
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex <= 0) return false;
+        String baseName = fileName.substring(0, dotIndex);
+        return baseName.matches(".*_\\d+$");
+    }
+
+    private Pattern getVersionedTranslatedFilePattern(String baseName, String extension) {
+        return Pattern.compile("^"+Pattern.quote(baseName)+"(_translated)(_\\d+)?"+Pattern.quote(extension)+"$");
+    }
+
     /**
      * baseName에 해당하는 파일들을 찾음 (버전 카운트용)
      * 예: file → file.asta, file_1.asta, file_2.asta
@@ -396,7 +422,7 @@ public class DirectoryService {
         int separatorIndex = fileName.lastIndexOf(".");
         String baseName = fileName.substring(0, separatorIndex);
         String extension = fileName.substring(separatorIndex);
-        Pattern pattern = Pattern.compile("^"+Pattern.quote(baseName)+"(_\\d+)?"+Pattern.quote(extension)+"$");
+        Pattern pattern = this.getVersionedTargetFilePattern(baseName,extension);
         return Arrays.stream(files)
                 .filter(f -> pattern.matcher(f.getName()).matches())
                 .collect(Collectors.toList());
@@ -415,7 +441,7 @@ public class DirectoryService {
         int separatorIndex = fileName.lastIndexOf(".");
         String baseName = fileName.substring(0, separatorIndex);
         String extension = fileName.substring(separatorIndex);
-        Pattern pattern = Pattern.compile("^"+Pattern.quote(baseName)+"(_translated)(_\\d+)?"+Pattern.quote(extension)+"$");
+        Pattern pattern = this.getVersionedTranslatedFilePattern(baseName, extension);
         return Arrays.stream(files)
                 .filter(f -> pattern.matcher(f.getName()).matches())
                 .collect(Collectors.toList());
